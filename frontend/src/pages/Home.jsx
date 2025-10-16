@@ -17,7 +17,7 @@ const Home = () => {
     const fetchProjects = async () => {
         try {
             setLoading(true);
-            const response = await apiClient.get('/projects');
+            const response = await apiClient.get('/api/tasks');
             setProjects(response.data);
         } catch (error) {
             console.error('Error fetching projects:', error);
@@ -36,6 +36,7 @@ const Home = () => {
             setShowCreateModal(false);
             toast.success('Project created successfully!');
         } catch (error) {
+            console.log("ERROR WITH THE BACKEND " + error.response.data);
             console.error('Error creating project:', error);
             toast.error('Failed to create project');
         }
@@ -46,10 +47,10 @@ const Home = () => {
             {/* Header */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-slate-800 mb-2">
-                    Welcome to AI JIRA
+                    Welcome to Vaultreon
                 </h1>
                 <p className="text-slate-600">
-                    Manage your projects with AI-powered insights and dependency tracking
+                    Create simple to use SCRUM boards while not getting lost in the weeds. See dependencies for tickets, and get AI-powered insights and summaries.
                 </p>
             </div>
 
