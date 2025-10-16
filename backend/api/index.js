@@ -14,11 +14,11 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 app.use(cors());
 app.use(express.json());
 
-app.get('/api', (req, res) => {
+app.get('/', (req, res) => {
     res.json({ message: 'This test is a test if the backend works' });
 });
 
-app.get('/api/tasks', async (req, res) => {
+app.get('/tasks', async (req, res) => {
     const { data, error } = await supabase
         .from('tasks')
         .select('*');
