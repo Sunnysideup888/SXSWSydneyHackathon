@@ -23,6 +23,9 @@ app.get('/api/tasks', async (req, res) => {
         .from('tasks')
         .select('*');
 
+    console.log('This is the data ' + JSON.stringify(data, null, 2))
+    console.log('This is the error ' + error)
+
     if (error) {
         return res.status(500).json({ error: error.message });
     }
