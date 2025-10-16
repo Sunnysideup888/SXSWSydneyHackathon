@@ -4,7 +4,7 @@ const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = 3001;
 
 const apiRouter = express.Router();
 
@@ -31,10 +31,12 @@ apiRouter.get('/tasks', async (req, res) => {
     res.status(200).json(data);
 });
 
-app.use('', apiRouter);
+app.use('/api', apiRouter);
 
-app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(port, () => {
+        console.log(`Server running on http://localhost:${port}`);
+    });
+}
 
 module.exports = app;
