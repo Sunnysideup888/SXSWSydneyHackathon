@@ -1,49 +1,37 @@
-import apiClient from "./api/apiClient.js";
-import { useState, useEffect } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+import Layout from './components/Layout';
+import Home from './pages/Home';
+import Project from './pages/Project';
+import TicketDetail from './pages/TicketDetail';
+import People from './pages/People';
 
 function App() {
-    const [tasks, setTasks] = useState([])
-    const [message, setMessage] = useState("Loading...")
-
-    useEffect(() => {
-        const fetchTasks = async () => {
-            try {
-                const res = await apiClient.get('api/tasks')
-                console.log(res.data)
-
-                if (Array.isArray(res.data)) {
-                    setTasks(res.data)
-                    setMessage('')
-                } else {
-                    setMessage('Failed to load tasks')
-                }
-            } catch (err) {
-                setMessage(`Error connecting to API ${err.data}`)
-            }
-        }
-
-        fetchTasks()
-    }, []);
-
     return (
-        <>
-            <p className="flex flex-row p-4 bg-amber-50 mb-2">Hackathon Tasks</p>
-            {message && <p className="text-center">{message}</p>}
-
-            <ul className="space-y-3">
-                {tasks.map(task => (
-                    <li
-                        key={task.id}
-                        className={`p-4 rounded-md flex items-center transition-all ${
-                            task.is_complete ? 'bg-green-50' : 'bg-red-50'
-                        }`}
-                    >
-                        {task.title}
-                    </li>
-                ))}
-            </ul>
-        </>
-    )
+        <Router>
+            <div className="min-h-screen bg-slate-50">
+                <Toaster 
+                    position="top-right"
+                    toastOptions={{
+                        duration: 4000,
+                        style: {
+                            background: '#363636',
+                            color: '#fff',
+                        },
+                    }}
+                />
+                <Layout>
+                    <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/projects/:projectId" element={<Project />} />
+                        <Route path="/tickets/:ticketId" element={<TicketDetail />} />
+                        <Route path="/people" element={<People />} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                    </Routes>
+                </Layout>
+            </div>
+        </Router>
+    );
 }
 
-export default App
+export default App;
