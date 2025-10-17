@@ -484,10 +484,14 @@ function ProjectPage() {
                             {/* Task List */}
                             <div className="space-y-2">
                                 {backlog.map((task) => (
-                                    <div key={task.id} className={`bg-white/40 rounded-lg p-3 border border-slate-200/50 transition-all duration-300 cursor-pointer hover:bg-white/60 ${
-                                        taskActions[task.id] === 'accepted' ? 'opacity-60 bg-green-50/40' : 
-                                        taskActions[task.id] === 'rejected' ? 'opacity-60 bg-red-50/40' : ''
-                                    }`} onClick={() => handleEditTask(task)}>
+                                    <div 
+                                        key={task.id} 
+                                        onClick={() => navigate(`/project/${projectId}/ticket/${task.id}/dependencies`)}
+                                        className={`bg-white/40 rounded-lg p-3 border border-slate-200/50 transition-all duration-300 cursor-pointer hover:bg-white/60 hover:shadow-md ${
+                                            taskActions[task.id] === 'accepted' ? 'opacity-60 bg-green-50/40' : 
+                                            taskActions[task.id] === 'rejected' ? 'opacity-60 bg-red-50/40' : ''
+                                        }`}
+                                    >
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3">
