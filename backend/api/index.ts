@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { tickets, projects, people, ticketsToPeople } from '../db/schema/schema';
+import { tickets, projects, people, ticketsToPeople, ticketDependencies } from '../db/schema/schema';
 import { eq, and } from 'drizzle-orm';
 
 
@@ -178,19 +178,138 @@ app.get('/api/tickets/:ticketId', async (req, res) => {
         .innerJoin(people, eq(ticketsToPeople.personId, people.id))
         .where(eq(ticketsToPeople.ticketId, parseInt(ticketId)));
 
+        // Get dependencies (tickets this ticket depends on)
+        const dependencies = await db.select({
+            dependsOnTicketId: tickets.id,
+            dependsOnTitle: tickets.title,
+            dependsOnStatus: tickets.status,
+        })
+        .from(ticketDependencies)
+        .innerJoin(tickets, eq(ticketDependencies.dependsOnTicketId, tickets.id))
+        .where(eq(ticketDependencies.ticketId, parseInt(ticketId)));
+
+        // Get dependents (tickets that depend on this ticket)
+        const dependents = await db.select({
+            dependentTicketId: tickets.id,
+            dependentTitle: tickets.title,
+            dependentStatus: tickets.status,
+        })
+        .from(ticketDependencies)
+        .innerJoin(tickets, eq(ticketDependencies.ticketId, tickets.id))
+        .where(eq(ticketDependencies.dependsOnTicketId, parseInt(ticketId)));
+
         // Get project details
         const project = await db.select().from(projects)
             .where(eq(projects.id, ticket[0].projectId))
             .limit(1);
 
-        // Combine ticket data with people and project
+        // Combine ticket data with people, dependencies, and project
         const ticketWithDetails = {
             ...ticket[0],
             project: project[0],
-            people: ticketPeople
+            people: ticketPeople,
+            dependencies: dependencies,
+            dependents: dependents
         };
 
         res.status(200).json(ticketWithDetails);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Ticket dependency routes
+app.post('/api/tickets/:ticketId/dependencies', async (req, res) => {
+    try {
+        const { ticketId } = req.params;
+        const { dependsOnTicketId } = req.body;
+        
+        if (!dependsOnTicketId) {
+            return res.status(400).json({ error: 'dependsOnTicketId is required' });
+        }
+
+        const sourceTicketId = parseInt(ticketId);
+        const targetTicketId = parseInt(dependsOnTicketId);
+
+        // Prevent self-dependency
+        if (sourceTicketId === targetTicketId) {
+            return res.status(400).json({ error: 'A ticket cannot depend on itself' });
+        }
+
+        // Check if both tickets exist
+        const sourceTicket = await db.select().from(tickets).where(eq(tickets.id, sourceTicketId)).limit(1);
+        const targetTicket = await db.select().from(tickets).where(eq(tickets.id, targetTicketId)).limit(1);
+
+        if (sourceTicket.length === 0) {
+            return res.status(404).json({ error: 'Source ticket not found' });
+        }
+        if (targetTicket.length === 0) {
+            return res.status(404).json({ error: 'Target ticket not found' });
+        }
+
+        // Check if dependency already exists
+        const existingDependency = await db.select()
+            .from(ticketDependencies)
+            .where(and(
+                eq(ticketDependencies.ticketId, sourceTicketId),
+                eq(ticketDependencies.dependsOnTicketId, targetTicketId)
+            ))
+            .limit(1);
+
+        if (existingDependency.length > 0) {
+            return res.status(409).json({ error: 'Dependency already exists' });
+        }
+
+        // Check for circular dependency
+        const circularCheck = await db.select()
+            .from(ticketDependencies)
+            .where(and(
+                eq(ticketDependencies.ticketId, targetTicketId),
+                eq(ticketDependencies.dependsOnTicketId, sourceTicketId)
+            ))
+            .limit(1);
+
+        if (circularCheck.length > 0) {
+            return res.status(400).json({ error: 'Circular dependency detected' });
+        }
+
+        // Create dependency
+        const [dependency] = await db.insert(ticketDependencies).values({
+            ticketId: sourceTicketId,
+            dependsOnTicketId: targetTicketId,
+        }).returning();
+
+        res.status(201).json({
+            ...dependency,
+            message: 'Dependency created successfully'
+        });
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/tickets/:ticketId/dependencies/:dependsOnTicketId', async (req, res) => {
+    try {
+        const { ticketId, dependsOnTicketId } = req.params;
+        
+        const sourceTicketId = parseInt(ticketId);
+        const targetTicketId = parseInt(dependsOnTicketId);
+        
+        // Remove dependency
+        const deletedDependency = await db.delete(ticketDependencies)
+            .where(and(
+                eq(ticketDependencies.ticketId, sourceTicketId),
+                eq(ticketDependencies.dependsOnTicketId, targetTicketId)
+            ))
+            .returning();
+
+        if (deletedDependency.length === 0) {
+            return res.status(404).json({ error: 'Dependency not found' });
+        }
+
+        res.status(200).json({ message: 'Dependency removed successfully' });
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ error: error.message });
