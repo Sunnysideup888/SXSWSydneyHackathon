@@ -1,28 +1,30 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { createClient } = require('@supabase/supabase-js');
+const { drizzle } = require('drizzle-orm/node-postgres');
+const { neon } = require('@neondatabase/serverless');
+
 
 const app = express();
 const port = 3001;
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const apiRouter = express.Router();
+
+const sql = neon(process.env.DATABASE_URL);
+const db = drizzle({ client: sql });
 
 app.use(cors());
 app.use(express.json());
 
-app.get('/api', (req, res) => {
-    res.json({ message: 'This test is a test if the backend works' });
+apiRouter.get('/', (req, res) => {
+    res.json({ message: 'Hello World!' });
 });
 
-app.get('/api/tasks', async (req, res) => {
-    const { data, error } = await supabase
-        .from('tasks')
-        .select('*');
+apiRouter.get('/tickets', async (req, res) => {
+    const { data, error } = await db.select().from(tickets);
 
     if (error) {
+        console.error('Supabase error:', error);
         return res.status(500).json({ error: error.message });
     }
     res.status(200).json(data);
