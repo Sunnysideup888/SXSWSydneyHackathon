@@ -66,7 +66,7 @@ const DependencyGraph = () => {
     });
 
     // Process upstream dependencies with correct parent tracking
-    const processDependencies = (deps, parentTicketId = null) => {
+    const processUpstreamDependencies = (deps, parentTicketId = null) => {
       deps.forEach(dep => {
         const ticketId = dep.dependsOnTicketId;
         
@@ -92,13 +92,51 @@ const DependencyGraph = () => {
 
         // Process nested dependencies - pass this ticket as the parent
         if (dep.dependencies && dep.dependencies.length > 0) {
-          processDependencies(dep.dependencies, ticketId);
+          processUpstreamDependencies(dep.dependencies, ticketId);
         }
       });
     };
 
+    // Process downstream dependents
+    const processDownstreamDependents = (deps, parentTicketId = null) => {
+      deps.forEach(dep => {
+        const ticketId = dep.dependentTicketId;
+        
+        // Add node if not exists
+        if (!nodes.has(ticketId)) {
+          nodes.set(ticketId, {
+            id: ticketId,
+            title: dep.dependentTitle,
+            status: dep.dependentStatus,
+            type: 'downstream',
+            isMain: false
+          });
+        }
+
+        // Add link - this ticket depends on the main ticket
+        // The source is what depends on it, target is the dependency
+        const sourceId = parentTicketId || dependencyData.ticket.id;
+        links.push({
+          source: sourceId,  // What depends on it (what comes after)
+          target: ticketId,  // The dependency (what must be done first)
+          type: 'depends'
+        });
+
+        // Process nested dependents
+        if (dep.dependents && dep.dependents.length > 0) {
+          processDownstreamDependents(dep.dependents, ticketId);
+        }
+      });
+    };
+
+    // Process upstream dependencies
     if (dependencyData.allUpstreamDependencies) {
-      processDependencies(dependencyData.allUpstreamDependencies);
+      processUpstreamDependencies(dependencyData.allUpstreamDependencies);
+    }
+
+    // Process downstream dependents
+    if (dependencyData.allDownstreamDependents) {
+      processDownstreamDependents(dependencyData.allDownstreamDependents);
     }
 
     return {
@@ -294,6 +332,7 @@ const DependencyGraph = () => {
             </div>
           </div>
         </div>
+
 
         {/* Legend */}
         <div className="mb-6 flex flex-wrap gap-6 text-sm">

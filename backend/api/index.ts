@@ -462,7 +462,6 @@ app.get('/api/tickets/:ticketId/dependency-graph', async (req, res) => {
             return res.status(404).json({ error: 'Ticket not found' });
         }
 
-        let upstreamLength = 0;
         // Recursive function to get all upstream dependencies
         const getUpstreamDependencies = async (ticketId: number, visited = new Set<number>()): Promise<any[]> => {
             if (visited.has(ticketId)) {
@@ -491,12 +490,10 @@ app.get('/api/tickets/:ticketId/dependency-graph', async (req, res) => {
                     ...dep,
                     dependencies: subDeps
                 });
-                upstreamLength++;
             }
             return result;
         };
 
-        let downstreamLength = 0;
         // Recursive function to get all downstream dependents
         const getDownstreamDependents = async (ticketId: number, visited = new Set<number>()): Promise<any[]> => {
             if (visited.has(ticketId)) {
@@ -525,9 +522,28 @@ app.get('/api/tickets/:ticketId/dependency-graph', async (req, res) => {
                     ...dep,
                     dependents: subDeps
                 });
-                downstreamLength++;
             }
             return result;
+        };
+
+        // Helper function to count all nested dependencies
+        const countAllDependencies = (dependencies: any[]): number => {
+            let count = 0;
+            for (const dep of dependencies) {
+                count += 1; // Count this dependency
+                count += countAllDependencies(dep.dependencies || []); // Count nested dependencies
+            }
+            return count;
+        };
+
+        // Helper function to count all nested dependents
+        const countAllDependents = (dependents: any[]): number => {
+            let count = 0;
+            for (const dep of dependents) {
+                count += 1; // Count this dependent
+                count += countAllDependents(dep.dependents || []); // Count nested dependents
+            }
+            return count;
         };
 
         // Get all dependencies and dependents
@@ -580,8 +596,8 @@ app.get('/api/tickets/:ticketId/dependency-graph', async (req, res) => {
             allUpstreamDependencies: upstreamDependencies,
             allDownstreamDependents: downstreamDependents,
             summary: {
-                totalUpstream: upstreamLength,
-                totalDownstream: downstreamLength,
+                totalUpstream: countAllDependencies(upstreamDependencies),
+                totalDownstream: countAllDependents(downstreamDependents),
                 directDependenciesCount: directDependencies.length,
                 directDependentsCount: directDependents.length,
             }
@@ -590,7 +606,7 @@ app.get('/api/tickets/:ticketId/dependency-graph', async (req, res) => {
         res.status(200).json(dependencyGraph);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
