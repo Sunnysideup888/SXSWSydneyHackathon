@@ -16,6 +16,14 @@ const apiRouter = express.Router();
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle({ client: sql });
 
+// Test database connection
+sql`SELECT 1`.then(() => {
+    console.log('Database connected successfully');
+}).catch((err) => {
+    console.error('Database connection failed:', err);
+    process.exit(1);
+});
+
 // Initialize Relevance AI client
 const relevanceClient = createClient({
   apiKey: process.env.RELEVANCE_API_KEY || '',
@@ -856,6 +864,11 @@ app.post('/api/tickets/:ticketId/summarize', async (req, res) => {
 
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV}`);
+    console.log(`Database URL configured: ${!!process.env.DATABASE_URL}`);
+}).on('error', (err) => {
+    console.error('Server error:', err);
+    process.exit(1);
 });
 
 export default app;
