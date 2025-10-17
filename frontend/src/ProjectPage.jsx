@@ -21,6 +21,8 @@ function ProjectPage() {
     const [showAddTaskModal, setShowAddTaskModal] = useState(false)
     const [showPeopleModal, setShowPeopleModal] = useState(false)
     const [newPerson, setNewPerson] = useState({ name: '', email: '' })
+    const [summaries, setSummaries] = useState({})
+    const [loadingSummaries, setLoadingSummaries] = useState({})
     const [taskActions, setTaskActions] = useState({}) // Track accept/reject actions
     const [dependencySuggestions, setDependencySuggestions] = useState([])
     const [showSuggestions, setShowSuggestions] = useState(false)
@@ -202,6 +204,19 @@ function ProjectPage() {
         } catch (error) {
             console.error('Failed to delete person:', error)
             alert('Failed to delete person. Please try again.')
+        }
+    }
+
+    const handleSummarizeTicket = async (taskId) => {
+        try {
+            setLoadingSummaries(prev => ({ ...prev, [taskId]: true }))
+            const response = await ticketsAPI.summarize(taskId)
+            setSummaries(prev => ({ ...prev, [taskId]: response.data.summary }))
+        } catch (error) {
+            console.error('Failed to summarize ticket:', error)
+            alert('Failed to summarize ticket. Please try again.')
+        } finally {
+            setLoadingSummaries(prev => ({ ...prev, [taskId]: false }))
         }
     }
 
@@ -432,6 +447,12 @@ function ProjectPage() {
                                                         </span>
                                                     )}
                                                 </div>
+                                                {summaries[task.id] && (
+                                                    <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                                                        <h4 className="text-sm font-semibold text-purple-800 mb-2">AI Summary</h4>
+                                                        <p className="text-sm text-purple-700">{summaries[task.id]}</p>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="flex gap-2 ml-4">
                                                 {task.isAiGenerated && !taskActions[task.id] && (
@@ -450,6 +471,13 @@ function ProjectPage() {
                                                         </button>
                                                     </>
                                                 )}
+                                                <button
+                                                    onClick={() => handleSummarizeTicket(task.id)}
+                                                    disabled={loadingSummaries[task.id]}
+                                                    className="px-3 py-1 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50"
+                                                >
+                                                    {loadingSummaries[task.id] ? 'Summarizing...' : 'Summarize'}
+                                                </button>
                                                 <button
                                                     onClick={() => handleDeleteTask(task.id)}
                                                     className="px-3 py-1 bg-slate-500 text-white text-sm rounded-lg hover:bg-slate-600 transition-colors hover:cursor-pointer"

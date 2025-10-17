@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
 import { tickets, projects, people, ticketsToPeople, ticketDependencies } from '../db/schema/schema';
 import { eq, and } from 'drizzle-orm';
-
+import { Agent, createClient } from '@relevanceai/sdk';
 
 const app = express();
 const port = 3001;
@@ -14,6 +14,13 @@ const apiRouter = express.Router();
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle({ client: sql });
+
+// Initialize Relevance AI client
+const relevanceClient = createClient({
+  apiKey: process.env.RELEVANCE_API_KEY || '',
+  region: 'f1db6c' as any, // Your region
+  project: process.env.RELEVANCE_PROJECT_ID || '',
+});
 
 app.use(cors());
 app.use(express.json());
@@ -31,7 +38,7 @@ app.get('/api/projects', async (req, res) => {
         res.status(200).json(data);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -53,7 +60,7 @@ app.post('/api/projects', async (req, res) => {
         res.status(201).json(newProject);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -94,7 +101,7 @@ app.get('/api/projects/:projectId', async (req, res) => {
         res.status(200).json(projectWithTickets);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -128,7 +135,7 @@ app.put('/api/projects/:projectId', async (req, res) => {
         res.status(200).json(updatedProject);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -148,7 +155,7 @@ app.delete('/api/projects/:projectId', async (req, res) => {
         res.status(200).json({ message: 'Project deleted successfully' });
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -161,7 +168,7 @@ app.get('/api/people', async (req, res) => {
         res.status(200).json(data);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -183,7 +190,7 @@ app.post('/api/people', async (req, res) => {
         res.status(201).json(newPerson);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -204,7 +211,7 @@ app.delete('/api/people/:id', async (req, res) => {
         res.status(200).json({ message: 'Person deleted successfully' });
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -251,7 +258,7 @@ app.post('/api/tickets/:ticketId/people', async (req, res) => {
         res.status(201).json(assignment);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -274,7 +281,7 @@ app.delete('/api/tickets/:ticketId/people/:personId', async (req, res) => {
         res.status(200).json({ message: 'Person removed from ticket successfully' });
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -339,7 +346,7 @@ app.get('/api/tickets/:ticketId', async (req, res) => {
         res.status(200).json(ticketWithDetails);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -410,7 +417,7 @@ app.post('/api/tickets/:ticketId/dependencies', async (req, res) => {
         });
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -436,7 +443,7 @@ app.delete('/api/tickets/:ticketId/dependencies/:dependsOnTicketId', async (req,
         res.status(200).json({ message: 'Dependency removed successfully' });
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -449,7 +456,7 @@ app.get('/api/tickets', async (req, res) => {
         res.status(200).json(data);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -476,7 +483,7 @@ app.post('/api/tickets', async (req, res) => {
         res.status(201).json(newTicket);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -524,7 +531,7 @@ app.put('/api/tickets/:ticketId', async (req, res) => {
         res.status(200).json(updatedTicket);
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 
@@ -546,7 +553,127 @@ app.delete('/api/tickets/:ticketId', async (req, res) => {
         res.status(200).json({ message: 'Ticket deleted successfully' });
     } catch (error) {
         console.error('Database error:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: (error as Error).message });
+    }
+});
+
+// Relevance AI - Ticket Summarization
+app.post('/api/tickets/:ticketId/summarize', async (req, res) => {
+    console.log('Backend: POST /api/tickets/' + req.params.ticketId + '/summarize');
+    try {
+        const { ticketId } = req.params;
+        
+        // Get the main ticket
+        const ticket = await db.select().from(tickets)
+            .where(eq(tickets.id, parseInt(ticketId)))
+            .limit(1);
+
+        if (ticket.length === 0) {
+            return res.status(404).json({ error: 'Ticket not found' });
+        }
+
+        // Get dependencies (tickets this ticket depends on)
+        const dependencies = await db.select({
+            dependsOnTicketId: tickets.id,
+            dependsOnTitle: tickets.title,
+            dependsOnStatus: tickets.status,
+            dependsOnContent: tickets.content,
+            dependsOnDecision: tickets.decision,
+            dependsOnConsequences: tickets.consequences,
+            dependsOnIsAiGenerated: tickets.isAiGenerated,
+            dependsOnCreatedAt: tickets.createdAt,
+        })
+        .from(ticketDependencies)
+        .innerJoin(tickets, eq(ticketDependencies.dependsOnTicketId, tickets.id))
+        .where(eq(ticketDependencies.ticketId, parseInt(ticketId)));
+
+        // Get dependents (tickets that depend on this ticket)
+        const dependents = await db.select({
+            dependentTicketId: tickets.id,
+            dependentTitle: tickets.title,
+            dependentStatus: tickets.status,
+            dependentContent: tickets.content,
+            dependentDecision: tickets.decision,
+            dependentConsequences: tickets.consequences,
+            dependentIsAiGenerated: tickets.isAiGenerated,
+            dependentCreatedAt: tickets.createdAt,
+        })
+        .from(ticketDependencies)
+        .innerJoin(tickets, eq(ticketDependencies.ticketId, tickets.id))
+        .where(eq(ticketDependencies.dependsOnTicketId, parseInt(ticketId)));
+
+        // Get all upstream dependencies (recursive)
+        const getAllUpstreamDependencies = async (ticketIds: number[]): Promise<any[]> => {
+            if (ticketIds.length === 0) return [];
+            
+            const upstreamDeps = await db.select({
+                dependsOnTicketId: tickets.id,
+                dependsOnTitle: tickets.title,
+                dependsOnStatus: tickets.status,
+                dependsOnContent: tickets.content,
+                dependsOnDecision: tickets.decision,
+                dependsOnConsequences: tickets.consequences,
+                dependsOnIsAiGenerated: tickets.isAiGenerated,
+                dependsOnCreatedAt: tickets.createdAt,
+            })
+            .from(ticketDependencies)
+            .innerJoin(tickets, eq(ticketDependencies.dependsOnTicketId, tickets.id))
+            .where(eq(ticketDependencies.ticketId, ticketIds[0]!));
+
+            const upstreamTicketIds = upstreamDeps.map(dep => dep.dependsOnTicketId);
+            const deeperDeps = await getAllUpstreamDependencies(upstreamTicketIds);
+            
+            return [...upstreamDeps, ...deeperDeps];
+        };
+
+        const allUpstreamDependencies = await getAllUpstreamDependencies([parseInt(ticketId)]);
+
+        // Prepare the data for the AI agent
+        const ticketData = {
+            ticket: ticket[0],
+            directDependencies: dependencies,
+            directDependents: dependents,
+            allUpstreamDependencies: allUpstreamDependencies
+        };
+
+        console.log('Backend: Calling Relevance AI agent with data:', JSON.stringify(ticketData, null, 2));
+
+        // Get the Sage agent
+        const sageAgent = await Agent.get('466fb74b-f420-4961-b403-b3334a3e9ff4', relevanceClient);
+        
+        // Send the ticket data to the agent
+        const task = await sageAgent.sendMessage(JSON.stringify(ticketData));
+        
+        // Wait for the agent response
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                task.unsubscribe();
+                reject(new Error('Agent response timeout'));
+            }, 30000); // 30 second timeout
+
+            task.addEventListener('message', ({ detail: { message } }) => {
+                if (message.isAgent()) {
+                    clearTimeout(timeout);
+                    task.unsubscribe();
+                    console.log('Backend: Agent response:', message.text);
+                    resolve(res.status(200).json({ 
+                        summary: message.text,
+                        ticketId: parseInt(ticketId)
+                    }));
+                }
+            });
+
+            task.addEventListener('error', ({ detail: { message } }) => {
+                clearTimeout(timeout);
+                task.unsubscribe();
+                console.error('Backend: Agent error:', message.lastError);
+                reject(new Error('Agent error: ' + message.lastError));
+            });
+        });
+
+    } catch (error) {
+        console.error('Database/Agent error:', error);
+        res.status(500).json({ error: (error as Error).message });
     }
 });
 

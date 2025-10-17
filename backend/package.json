@@ -1,6 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -28,8 +29,10 @@
     "postgres": "^3.4.7"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/pg": "^8.15.5",
     "drizzle-kit": "^0.31.5",
-    "tsx": "^4.20.6"
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
   }
 }

@@ -48,6 +48,10 @@ export const ticketsAPI = {
     delete: (id) => {
         console.log('API Call: DELETE /api/tickets/' + id)
         return apiClient.delete(`/api/tickets/${id}`)
+    },
+    summarize: (id) => {
+        console.log('API Call: POST /api/tickets/' + id + '/summarize')
+        return apiClient.post(`/api/tickets/${id}/summarize`)
     }
 }
 
