@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { tickets, projects, people, ticketsToPeople, ticketDependencies } from '../db/schema/schema';
+import { tickets, projects, people, ticketsToPeople, ticketDependencies, ticketStatusEnum } from '../db/schema/schema';
 import { eq, and } from 'drizzle-orm';
 import { Agent, createClient } from '@relevanceai/sdk';
 
@@ -447,13 +447,160 @@ app.delete('/api/tickets/:ticketId/dependencies/:dependsOnTicketId', async (req,
     }
 });
 
+// Get ticket dependency graph
+app.get('/api/tickets/:ticketId/dependency-graph', async (req, res) => {
+    try {
+        const { ticketId } = req.params;
+        const sourceTicketId = parseInt(ticketId);
+
+        // Check if ticket exists
+        const ticket = await db.select().from(tickets)
+            .where(eq(tickets.id, sourceTicketId))
+            .limit(1);
+
+        if (ticket.length === 0) {
+            return res.status(404).json({ error: 'Ticket not found' });
+        }
+
+        let upstreamLength = 0;
+        // Recursive function to get all upstream dependencies
+        const getUpstreamDependencies = async (ticketId: number, visited = new Set<number>()): Promise<any[]> => {
+            if (visited.has(ticketId)) {
+                return []; // Prevent infinite loops
+            }
+            visited.add(ticketId);
+            
+            const dependencies = await db.select({
+                dependsOnTicketId: tickets.id,
+                dependsOnTitle: tickets.title,
+                dependsOnStatus: tickets.status,
+                dependsOnContent: tickets.content, 
+                dependsOnDecision: tickets.decision,
+                dependsOnConsequences: tickets.consequences,
+                dependsOnIsAiGenerated: tickets.isAiGenerated,
+                dependsOnCreatedAt: tickets.createdAt,
+            })
+            .from(ticketDependencies)
+            .innerJoin(tickets, eq(ticketDependencies.dependsOnTicketId, tickets.id))
+            .where(eq(ticketDependencies.ticketId, ticketId));
+            
+            const result: any[] = [];
+            for (const dep of dependencies) {
+                const subDeps = await getUpstreamDependencies(dep.dependsOnTicketId, visited);
+                result.push({
+                    ...dep,
+                    dependencies: subDeps
+                });
+                upstreamLength++;
+            }
+            return result;
+        };
+
+        let downstreamLength = 0;
+        // Recursive function to get all downstream dependents
+        const getDownstreamDependents = async (ticketId: number, visited = new Set<number>()): Promise<any[]> => {
+            if (visited.has(ticketId)) {
+                return []; // Prevent infinite loops
+            }
+            visited.add(ticketId);
+            
+            const dependents = await db.select({
+                dependentTicketId: tickets.id,
+                dependentTitle: tickets.title,
+                dependentStatus: tickets.status,
+                dependentContent: tickets.content,
+                dependentDecision: tickets.decision,
+                dependentConsequences: tickets.consequences,
+                dependentIsAiGenerated: tickets.isAiGenerated,
+                dependentCreatedAt: tickets.createdAt,
+            })
+            .from(ticketDependencies)
+            .innerJoin(tickets, eq(ticketDependencies.ticketId, tickets.id))
+            .where(eq(ticketDependencies.dependsOnTicketId, ticketId));
+            
+            const result: any[] = [];
+            for (const dep of dependents) {
+                const subDeps = await getDownstreamDependents(dep.dependentTicketId, visited);
+                result.push({
+                    ...dep,
+                    dependents: subDeps
+                });
+                downstreamLength++;
+            }
+            return result;
+        };
+
+        // Get all dependencies and dependents
+        const upstreamDependencies = await getUpstreamDependencies(sourceTicketId);
+        const downstreamDependents = await getDownstreamDependents(sourceTicketId);
+
+        // Get direct dependencies and dependents for the main ticket
+        const directDependencies = await db.select({
+            dependsOnTicketId: tickets.id,
+            dependsOnTitle: tickets.title,
+            dependsOnStatus: tickets.status,
+            dependsOnContent: tickets.content,
+            dependsOnDecision: tickets.decision,
+            dependsOnConsequences: tickets.consequences,
+            dependsOnIsAiGenerated: tickets.isAiGenerated,
+            dependsOnCreatedAt: tickets.createdAt,
+        })
+        .from(ticketDependencies)
+        .innerJoin(tickets, eq(ticketDependencies.dependsOnTicketId, tickets.id))
+        .where(eq(ticketDependencies.ticketId, sourceTicketId));
+
+        const directDependents = await db.select({
+            dependentTicketId: tickets.id,
+            dependentTitle: tickets.title,
+            dependentStatus: tickets.status,
+            dependentContent: tickets.content,
+            dependentDecision: tickets.decision,
+            dependentConsequences: tickets.consequences,
+            dependentIsAiGenerated: tickets.isAiGenerated,
+            dependentCreatedAt: tickets.createdAt,
+        })
+        .from(ticketDependencies)
+        .innerJoin(tickets, eq(ticketDependencies.ticketId, tickets.id))
+        .where(eq(ticketDependencies.dependsOnTicketId, sourceTicketId));
+
+        // Build the complete dependency graph
+        const dependencyGraph = {
+            ticket: {
+                id: ticket[0].id,
+                title: ticket[0].title,
+                status: ticket[0].status,
+                content: ticket[0].content,
+                decision: ticket[0].decision,
+                consequences: ticket[0].consequences,
+                isAiGenerated: ticket[0].isAiGenerated,
+                createdAt: ticket[0].createdAt,
+            },
+            directDependencies: directDependencies,
+            directDependents: directDependents,
+            allUpstreamDependencies: upstreamDependencies,
+            allDownstreamDependents: downstreamDependents,
+            summary: {
+                totalUpstream: upstreamLength,
+                totalDownstream: downstreamLength,
+                directDependenciesCount: directDependencies.length,
+                directDependentsCount: directDependents.length,
+            }
+        };
+
+        res.status(200).json(dependencyGraph);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Tickets routes
 app.get('/api/tickets', async (req, res) => {
     console.log('Backend: GET /api/tickets');
     try {
         const data = await db.select().from(tickets);
         console.log('Backend: Found', data.length, 'tickets');
-        res.status(200).json(data);
+    res.status(200).json(data);
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ error: (error as Error).message });
