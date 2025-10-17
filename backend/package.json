@@ -16,6 +16,7 @@
   "description": "",
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "@relevanceai/sdk": "^3.0.0-rc.2",
     "@supabase/supabase-js": "^2.75.0",
     "@types/express": "^5.0.3",
     "cors": "^2.8.5",
