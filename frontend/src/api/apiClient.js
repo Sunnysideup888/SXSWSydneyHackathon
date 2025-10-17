@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'https://sxswsydneyhackathonbackendv2.onrender.com',
+    baseURL: import.meta.env.VITE_API_URL || 'http://3.107.206.170:3001',
     headers: {
         'Content-Type': 'application/json',
     },
