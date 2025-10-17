@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { drizzle } = require('drizzle-orm/node-postgres');
 const { neon } = require('@neondatabase/serverless');
-const { tickets } = require('./db/schema/schema');
+
 
 const app = express();
 const port = 3001;
