@@ -37,6 +37,7 @@ app.use(cors({
         'http://localhost:5174', 
         'http://localhost:5175',
         'https://sxsw-sydney-hackathon-frontend.vercel.app',
+        'https://sxsw-sydney-hackathon-frontend-jkier0rpb.vercel.app',
         'https://*.vercel.app'
     ],
     credentials: true,
