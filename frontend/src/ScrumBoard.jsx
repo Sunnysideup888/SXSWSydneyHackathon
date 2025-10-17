@@ -1,51 +1,76 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { projectsAPI, ticketsAPI } from './api/apiClient'
 
 function ScrumBoard() {
     const { projectId } = useParams()
     const navigate = useNavigate()
     const [project, setProject] = useState(null)
     const [tasks, setTasks] = useState([])
+    const [loading, setLoading] = useState(true)
 
-    // Load project and tasks data from localStorage
-    useEffect(() => {
-        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
-        const projectData = projects.find(p => p.id === parseInt(projectId))
-        
-        if (projectData) {
-            setProject(projectData)
-            setTasks(projectData.backlog || [])
+    const generateTicketHash = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+        let hash = ''
+        for (let i = 0; i < 6; i++) {
+            hash += chars.charAt(Math.floor(Math.random() * chars.length))
         }
-    }, [projectId])
-
-    const updateTaskStatus = (taskId, newStatus) => {
-        const updatedTasks = tasks.map(task => 
-            task.id === taskId ? { ...task, status: newStatus } : task
-        )
-        setTasks(updatedTasks)
-
-        // Update localStorage
-        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
-        const updatedProjects = projects.map(p => 
-            p.id === parseInt(projectId) 
-                ? { ...p, backlog: updatedTasks }
-                : p
-        )
-        localStorage.setItem('projects', JSON.stringify(updatedProjects))
+        return hash
     }
 
-    const handleDeleteTask = (taskId) => {
-        const updatedTasks = tasks.filter(task => task.id !== taskId)
-        setTasks(updatedTasks)
+    // Load project and tasks data from API
+    useEffect(() => {
+        loadProjectData()
+    }, [projectId])
 
-        // Update localStorage
-        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
-        const updatedProjects = projects.map(p => 
-            p.id === parseInt(projectId) 
-                ? { ...p, backlog: updatedTasks }
-                : p
-        )
-        localStorage.setItem('projects', JSON.stringify(updatedProjects))
+    const loadProjectData = async () => {
+        try {
+            setLoading(true)
+            // Load project details
+            const projectsResponse = await projectsAPI.getAll()
+            const projectData = projectsResponse.data.find(p => p.id === parseInt(projectId))
+            
+            if (projectData) {
+                setProject(projectData)
+                
+                // Load tickets for this project
+                const ticketsResponse = await ticketsAPI.getAll()
+                const projectTickets = ticketsResponse.data.filter(t => t.projectId === parseInt(projectId))
+                    .map(ticket => ({
+                        ...ticket,
+                        people: ticket.people || [],
+                        dependencies: ticket.dependencies || [],
+                        hash: ticket.hash || generateTicketHash()
+                    }))
+                setTasks(projectTickets)
+            }
+        } catch (error) {
+            console.error('Failed to load project data:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const updateTaskStatus = async (taskId, newStatus) => {
+        try {
+            await ticketsAPI.update(taskId, { status: newStatus })
+            setTasks(prev => prev.map(task => 
+                task.id === taskId ? { ...task, status: newStatus } : task
+            ))
+        } catch (error) {
+            console.error('Failed to update task status:', error)
+            alert('Failed to update task status. Please try again.')
+        }
+    }
+
+    const handleDeleteTask = async (taskId) => {
+        try {
+            await ticketsAPI.delete(taskId)
+            setTasks(prev => prev.filter(task => task.id !== taskId))
+        } catch (error) {
+            console.error('Failed to delete task:', error)
+            alert('Failed to delete task. Please try again.')
+        }
     }
 
     const getStatusColor = (status) => {
@@ -74,9 +99,15 @@ function ScrumBoard() {
         return 'bg-gray-100 text-gray-800'
     }
 
-    if (!project) {
+    if (loading) {
         return <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
             <div className="text-slate-600">Loading project...</div>
+        </div>
+    }
+
+    if (!project) {
+        return <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
+            <div className="text-slate-600">Project not found</div>
         </div>
     }
 
@@ -186,7 +217,7 @@ function ScrumBoard() {
 
                                             {/* People and Dependencies */}
                                             <div className="space-y-1">
-                                                {task.people.length > 0 && (
+                                                {task.people && task.people.length > 0 && (
                                                     <div className="flex items-center gap-1 text-xs text-slate-500">
                                                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
@@ -194,7 +225,7 @@ function ScrumBoard() {
                                                         <span>{task.people.join(', ')}</span>
                                                     </div>
                                                 )}
-                                                {task.dependencies.length > 0 && (
+                                                {task.dependencies && task.dependencies.length > 0 && (
                                                     <div className="flex items-center gap-1 text-xs text-slate-500">
                                                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />

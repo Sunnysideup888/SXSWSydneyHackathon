@@ -24,8 +24,10 @@ apiRouter.get('/', (req, res) => {
 
 // Projects routes
 app.get('/api/projects', async (req, res) => {
+    console.log('Backend: GET /api/projects');
     try {
         const data = await db.select().from(projects);
+        console.log('Backend: Found', data.length, 'projects');
         res.status(200).json(data);
     } catch (error) {
         console.error('Database error:', error);
@@ -34,6 +36,7 @@ app.get('/api/projects', async (req, res) => {
 });
 
 app.post('/api/projects', async (req, res) => {
+    console.log('Backend: POST /api/projects', req.body);
     try {
         const { name, description } = req.body;
         
@@ -46,7 +49,27 @@ app.post('/api/projects', async (req, res) => {
             description: description || null,
         }).returning();
 
+        console.log('Backend: Created project', newProject);
         res.status(201).json(newProject);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/projects/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const deletedProject = await db.delete(projects)
+            .where(eq(projects.id, parseInt(id)))
+            .returning();
+
+        if (deletedProject.length === 0) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
+        res.status(200).json({ message: 'Project deleted successfully' });
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ error: error.message });
@@ -55,8 +78,10 @@ app.post('/api/projects', async (req, res) => {
 
 // People routes
 app.get('/api/people', async (req, res) => {
+    console.log('Backend: GET /api/people');
     try {
         const data = await db.select().from(people);
+        console.log('Backend: Found', data.length, 'people');
         res.status(200).json(data);
     } catch (error) {
         console.error('Database error:', error);
@@ -65,6 +90,7 @@ app.get('/api/people', async (req, res) => {
 });
 
 app.post('/api/people', async (req, res) => {
+    console.log('Backend: POST /api/people', req.body);
     try {
         const { name, email } = req.body;
         
@@ -77,7 +103,29 @@ app.post('/api/people', async (req, res) => {
             email: email || null,
         }).returning();
 
+        console.log('Backend: Created person', newPerson);
         res.status(201).json(newPerson);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/people/:id', async (req, res) => {
+    console.log('Backend: DELETE /api/people/' + req.params.id);
+    try {
+        const { id } = req.params;
+        
+        const deletedPerson = await db.delete(people)
+            .where(eq(people.id, parseInt(id)))
+            .returning();
+
+        if (deletedPerson.length === 0) {
+            return res.status(404).json({ error: 'Person not found' });
+        }
+
+        console.log('Backend: Deleted person', deletedPerson[0]);
+        res.status(200).json({ message: 'Person deleted successfully' });
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ error: error.message });
@@ -318,8 +366,10 @@ app.delete('/api/tickets/:ticketId/dependencies/:dependsOnTicketId', async (req,
 
 // Tickets routes
 app.get('/api/tickets', async (req, res) => {
+    console.log('Backend: GET /api/tickets');
     try {
         const data = await db.select().from(tickets);
+        console.log('Backend: Found', data.length, 'tickets');
         res.status(200).json(data);
     } catch (error) {
         console.error('Database error:', error);
@@ -328,6 +378,7 @@ app.get('/api/tickets', async (req, res) => {
 });
 
 app.post('/api/tickets', async (req, res) => {
+    console.log('Backend: POST /api/tickets', req.body);
     try {
         const { projectId, title, content, decision, consequences, status, isAiGenerated } = req.body;
         
@@ -345,7 +396,60 @@ app.post('/api/tickets', async (req, res) => {
             isAiGenerated: isAiGenerated || false,
         }).returning();
 
+        console.log('Backend: Created ticket', newTicket);
         res.status(201).json(newTicket);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.put('/api/tickets/:id', async (req, res) => {
+    console.log('Backend: PUT /api/tickets/' + req.params.id, req.body);
+    try {
+        const { id } = req.params;
+        const { projectId, title, content, decision, consequences, status, isAiGenerated } = req.body;
+        
+        const [updatedTicket] = await db.update(tickets)
+            .set({
+                projectId: projectId ? parseInt(projectId) : undefined,
+                title,
+                content,
+                decision,
+                consequences,
+                status,
+                isAiGenerated,
+            })
+            .where(eq(tickets.id, parseInt(id)))
+            .returning();
+
+        if (!updatedTicket) {
+            return res.status(404).json({ error: 'Ticket not found' });
+        }
+
+        console.log('Backend: Updated ticket', updatedTicket);
+        res.status(200).json(updatedTicket);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/tickets/:id', async (req, res) => {
+    console.log('Backend: DELETE /api/tickets/' + req.params.id);
+    try {
+        const { id } = req.params;
+        
+        const deletedTicket = await db.delete(tickets)
+            .where(eq(tickets.id, parseInt(id)))
+            .returning();
+
+        if (deletedTicket.length === 0) {
+            return res.status(404).json({ error: 'Ticket not found' });
+        }
+
+        console.log('Backend: Deleted ticket', deletedTicket[0]);
+        res.status(200).json({ message: 'Ticket deleted successfully' });
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ error: error.message });

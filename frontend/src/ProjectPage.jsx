@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { projectsAPI, ticketsAPI, peopleAPI, ticketPeopleAPI } from './api/apiClient'
 
 function ProjectPage() {
     const { projectId } = useParams()
     const navigate = useNavigate()
     const [project, setProject] = useState(null)
     const [backlog, setBacklog] = useState([])
+    const [people, setPeople] = useState([])
+    const [loading, setLoading] = useState(true)
     const [newTask, setNewTask] = useState({
         title: '',
         content: '',
@@ -16,21 +19,49 @@ function ProjectPage() {
         status: 'To Do'
     })
     const [showAddTaskModal, setShowAddTaskModal] = useState(false)
+    const [showPeopleModal, setShowPeopleModal] = useState(false)
+    const [newPerson, setNewPerson] = useState({ name: '', email: '' })
     const [taskActions, setTaskActions] = useState({}) // Track accept/reject actions
     const [dependencySuggestions, setDependencySuggestions] = useState([])
     const [showSuggestions, setShowSuggestions] = useState(false)
     const [dependenciesInput, setDependenciesInput] = useState('')
 
-    // Load project and backlog data from localStorage
+    // Load project and tickets data from API
     useEffect(() => {
-        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
-        const projectData = projects.find(p => p.id === parseInt(projectId))
-        
-        if (projectData) {
-            setProject(projectData)
-            setBacklog(projectData.backlog || [])
-        }
+        loadProjectData()
     }, [projectId])
+
+    const loadProjectData = async () => {
+        try {
+            setLoading(true)
+            // Load project details
+            const projectsResponse = await projectsAPI.getAll()
+            const projectData = projectsResponse.data.find(p => p.id === parseInt(projectId))
+            
+            if (projectData) {
+                setProject(projectData)
+                
+                // Load tickets for this project
+                const ticketsResponse = await ticketsAPI.getAll()
+                const projectTickets = ticketsResponse.data.filter(t => t.projectId === parseInt(projectId))
+                    .map(ticket => ({
+                        ...ticket,
+                        people: ticket.people || [],
+                        dependencies: ticket.dependencies || [],
+                        hash: ticket.hash || generateTicketHash()
+                    }))
+                setBacklog(projectTickets)
+                
+                // Load people
+                const peopleResponse = await peopleAPI.getAll()
+                setPeople(peopleResponse.data)
+            }
+        } catch (error) {
+            console.error('Failed to load project data:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
 
     // Sync dependenciesInput with newTask.dependencies
     useEffect(() => {
@@ -46,129 +77,132 @@ function ProjectPage() {
         return hash
     }
 
-    const handleAddTask = () => {
+    const handleAddTask = async () => {
         if (!newTask.title.trim()) return
 
-        const task = {
-            id: Date.now(),
-            projectId: parseInt(projectId),
-            hash: generateTicketHash(),
-            title: newTask.title,
-            content: newTask.content,
-            decision: newTask.decision,
-            consequences: newTask.consequences,
-            people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
-            dependencies: newTask.dependencies.split(',').map(d => d.trim()).filter(d => d),
-            status: newTask.status,
-            isAiGenerated: false,
-            createdAt: new Date().toISOString()
+        try {
+            const taskData = {
+                projectId: parseInt(projectId),
+                title: newTask.title,
+                content: newTask.content,
+                decision: newTask.decision,
+                consequences: newTask.consequences,
+                status: newTask.status,
+                isAiGenerated: false
+            }
+
+            const response = await ticketsAPI.create(taskData)
+            const newTaskWithHash = {
+                ...response.data,
+                hash: generateTicketHash(),
+                people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
+                dependencies: newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
+            }
+
+            setBacklog(prev => [...prev, newTaskWithHash])
+
+            // Reset form and close modal
+            setNewTask({
+                title: '',
+                content: '',
+                decision: '',
+                consequences: '',
+                people: '',
+                dependencies: '',
+                status: 'To Do'
+            })
+            setDependenciesInput('')
+            setShowSuggestions(false)
+            setShowAddTaskModal(false)
+        } catch (error) {
+            console.error('Failed to create task:', error)
+            alert('Failed to create task. Please try again.')
         }
-
-        const updatedBacklog = [...backlog, task]
-        setBacklog(updatedBacklog)
-
-        // Update localStorage
-        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
-        const updatedProjects = projects.map(p => 
-            p.id === parseInt(projectId) 
-                ? { ...p, backlog: updatedBacklog }
-                : p
-        )
-        localStorage.setItem('projects', JSON.stringify(updatedProjects))
-
-        // Reset form and close modal
-        setNewTask({
-            title: '',
-            content: '',
-            decision: '',
-            consequences: '',
-            people: '',
-            dependencies: '',
-            status: 'To Do'
-        })
-        setDependenciesInput('')
-        setShowSuggestions(false)
-        setShowAddTaskModal(false)
     }
 
-    const handleAutoTranslate = () => {
-        // Simulate AI-generated task
-        const aiTask = {
-            id: Date.now(),
-            projectId: parseInt(projectId),
-            hash: generateTicketHash(),
-            title: 'AI Generated Task - Meeting Discussion',
-            content: 'This task was generated from meeting transcript analysis',
-            decision: 'AI determined this task is needed based on discussion points',
-            consequences: 'Implementing this will improve team workflow',
-            people: ['AI Assistant'],
-            dependencies: [],
-            status: 'To Do',
-            isAiGenerated: true,
-            createdAt: new Date().toISOString()
+    const handleAutoTranslate = async () => {
+        try {
+            const aiTaskData = {
+                projectId: parseInt(projectId),
+                title: 'AI Generated Task - Meeting Discussion',
+                content: 'This task was generated from meeting transcript analysis',
+                decision: 'AI determined this task is needed based on discussion points',
+                consequences: 'Implementing this will improve team workflow',
+                status: 'To Do',
+                isAiGenerated: true
+            }
+
+            const response = await ticketsAPI.create(aiTaskData)
+            const aiTaskWithHash = {
+                ...response.data,
+                hash: generateTicketHash(),
+                people: ['AI Assistant'],
+                dependencies: []
+            }
+
+            setBacklog(prev => [...prev, aiTaskWithHash])
+        } catch (error) {
+            console.error('Failed to create AI task:', error)
+            alert('Failed to create AI task. Please try again.')
         }
-
-        const updatedBacklog = [...backlog, aiTask]
-        setBacklog(updatedBacklog)
-
-        // Update localStorage
-        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
-        const updatedProjects = projects.map(p => 
-            p.id === parseInt(projectId) 
-                ? { ...p, backlog: updatedBacklog }
-                : p
-        )
-        localStorage.setItem('projects', JSON.stringify(updatedProjects))
     }
 
-    const handleAcceptTask = (taskId) => {
-        const updatedBacklog = backlog.map(task => 
-            task.id === taskId ? { ...task, isAiGenerated: false } : task
-        )
-        setBacklog(updatedBacklog)
-
-        // Update localStorage
-        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
-        const updatedProjects = projects.map(p => 
-            p.id === parseInt(projectId) 
-                ? { ...p, backlog: updatedBacklog }
-                : p
-        )
-        localStorage.setItem('projects', JSON.stringify(updatedProjects))
-
-        // Track the action for visual feedback
-        setTaskActions(prev => ({ ...prev, [taskId]: 'accepted' }))
+    const handleAcceptTask = async (taskId) => {
+        try {
+            await ticketsAPI.update(taskId, { isAiGenerated: false })
+            setBacklog(prev => prev.map(task => 
+                task.id === taskId ? { ...task, isAiGenerated: false } : task
+            ))
+            setTaskActions(prev => ({ ...prev, [taskId]: 'accepted' }))
+        } catch (error) {
+            console.error('Failed to accept task:', error)
+            alert('Failed to accept task. Please try again.')
+        }
     }
 
-    const handleRejectTask = (taskId) => {
-        const updatedBacklog = backlog.filter(task => task.id !== taskId)
-        setBacklog(updatedBacklog)
-
-        // Update localStorage
-        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
-        const updatedProjects = projects.map(p => 
-            p.id === parseInt(projectId) 
-                ? { ...p, backlog: updatedBacklog }
-                : p
-        )
-        localStorage.setItem('projects', JSON.stringify(updatedProjects))
-
-        // Track the action for visual feedback
-        setTaskActions(prev => ({ ...prev, [taskId]: 'rejected' }))
+    const handleRejectTask = async (taskId) => {
+        try {
+            await ticketsAPI.delete(taskId)
+            setBacklog(prev => prev.filter(task => task.id !== taskId))
+            setTaskActions(prev => ({ ...prev, [taskId]: 'rejected' }))
+        } catch (error) {
+            console.error('Failed to reject task:', error)
+            alert('Failed to reject task. Please try again.')
+        }
     }
 
-    const handleDeleteTask = (taskId) => {
-        const updatedBacklog = backlog.filter(task => task.id !== taskId)
-        setBacklog(updatedBacklog)
+    const handleDeleteTask = async (taskId) => {
+        try {
+            await ticketsAPI.delete(taskId)
+            setBacklog(prev => prev.filter(task => task.id !== taskId))
+        } catch (error) {
+            console.error('Failed to delete task:', error)
+            alert('Failed to delete task. Please try again.')
+        }
+    }
 
-        // Update localStorage
-        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
-        const updatedProjects = projects.map(p => 
-            p.id === parseInt(projectId) 
-                ? { ...p, backlog: updatedBacklog }
-                : p
-        )
-        localStorage.setItem('projects', JSON.stringify(updatedProjects))
+    const handleAddPerson = async () => {
+        if (!newPerson.name.trim()) return
+
+        try {
+            const response = await peopleAPI.create(newPerson)
+            setPeople(prev => [...prev, response.data])
+            setNewPerson({ name: '', email: '' })
+            setShowPeopleModal(false)
+        } catch (error) {
+            console.error('Failed to create person:', error)
+            alert('Failed to create person. Please try again.')
+        }
+    }
+
+    const handleDeletePerson = async (personId) => {
+        try {
+            await peopleAPI.delete(personId)
+            setPeople(prev => prev.filter(p => p.id !== personId))
+        } catch (error) {
+            console.error('Failed to delete person:', error)
+            alert('Failed to delete person. Please try again.')
+        }
     }
 
     const getStatusColor = (status) => {
@@ -246,9 +280,15 @@ function ProjectPage() {
         return () => document.removeEventListener('click', handleClickOutside)
     }, [])
 
-    if (!project) {
+    if (loading) {
         return <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
             <div className="text-slate-600">Loading project...</div>
+        </div>
+    }
+
+    if (!project) {
+        return <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
+            <div className="text-slate-600">Project not found</div>
         </div>
     }
 
@@ -316,6 +356,12 @@ function ProjectPage() {
                                         + Add Task
                                     </button>
                                     <button
+                                        onClick={() => setShowPeopleModal(true)}
+                                        className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-medium hover:from-blue-600 hover:to-blue-700 transition-all duration-300"
+                                    >
+                                        Manage People
+                                    </button>
+                                    <button
                                         onClick={handleAutoTranslate}
                                         className="px-4 py-2 bg-gradient-to-r from-emerald-400 to-emerald-500 text-white rounded-xl font-medium hover:from-emerald-500 hover:to-emerald-600 transition-all duration-300"
                                     >
@@ -363,7 +409,7 @@ function ProjectPage() {
                                                     {task.content && <span>Content: {task.content.substring(0, 50)}...</span>}
                                                 </div>
                                                 <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
-                                                    {task.people.length > 0 && (
+                                                    {task.people && task.people.length > 0 && (
                                                         <span className="flex items-center gap-1">
                                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
@@ -371,7 +417,7 @@ function ProjectPage() {
                                                             {task.people.join(', ')}
                                                         </span>
                                                     )}
-                                                    {task.dependencies.length > 0 && (
+                                                    {task.dependencies && task.dependencies.length > 0 && (
                                                         <span className="flex items-center gap-1">
                                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -544,6 +590,87 @@ function ProjectPage() {
                             >
                                 Cancel
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* People Management Modal */}
+            {showPeopleModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white backdrop-blur-xl rounded-2xl border border-slate-200/50 p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-slate-800">Manage People</h2>
+                            <button
+                                onClick={() => setShowPeopleModal(false)}
+                                className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+                            >
+                                <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Add New Person */}
+                        <div className="mb-6 p-4 bg-slate-50 rounded-xl">
+                            <h3 className="text-lg font-semibold text-slate-800 mb-4">Add New Person</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Name *</label>
+                                    <input
+                                        type="text"
+                                        value={newPerson.name}
+                                        onChange={(e) => setNewPerson({...newPerson, name: e.target.value})}
+                                        className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                        placeholder="Person name"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
+                                    <input
+                                        type="email"
+                                        value={newPerson.email}
+                                        onChange={(e) => setNewPerson({...newPerson, email: e.target.value})}
+                                        className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                        placeholder="person@example.com"
+                                    />
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleAddPerson}
+                                className="mt-4 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-medium hover:from-blue-600 hover:to-blue-700 transition-all duration-300"
+                            >
+                                Add Person
+                            </button>
+                        </div>
+
+                        {/* People List */}
+                        <div>
+                            <h3 className="text-lg font-semibold text-slate-800 mb-4">All People</h3>
+                            <div className="space-y-2">
+                                {people.map((person) => (
+                                    <div key={person.id} className="flex items-center justify-between p-3 bg-white/50 rounded-lg border border-slate-200/50">
+                                        <div>
+                                            <h4 className="font-medium text-slate-800">{person.name}</h4>
+                                            {person.email && <p className="text-sm text-slate-600">{person.email}</p>}
+                                        </div>
+                                        <button
+                                            onClick={() => handleDeletePerson(person.id)}
+                                            className="p-2 hover:bg-red-100 rounded-lg transition-colors"
+                                            title="Delete person"
+                                        >
+                                            <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                ))}
+                                {people.length === 0 && (
+                                    <div className="text-center py-8 text-slate-500">
+                                        <p>No people added yet. Add your first person above!</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

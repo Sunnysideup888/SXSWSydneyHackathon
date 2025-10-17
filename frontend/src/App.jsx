@@ -2,41 +2,40 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom'
 import ProjectPage from './ProjectPage'
 import ScrumBoard from './ScrumBoard'
+import { projectsAPI } from './api/apiClient'
 
 function HomePage() {
     const navigate = useNavigate()
     const [projects, setProjects] = useState([])
 
     useEffect(() => {
-        // Load projects from localStorage
-        const savedProjects = JSON.parse(localStorage.getItem('projects') || '[]')
-        if (savedProjects.length === 0) {
-            // Initialize with default projects if none exist
-            const defaultProjects = [
-                { id: 1, name: "Sprint 1", description: "Q1 Feature Development", ticketCount: 12, backlog: [] },
-                { id: 2, name: "Sprint 2", description: "Q2 Product Launch", ticketCount: 8, backlog: [] },
-                { id: 3, name: "Yearly Push", description: "Annual Platform Upgrade", ticketCount: 25, backlog: [] }
-            ]
-            setProjects(defaultProjects)
-            localStorage.setItem('projects', JSON.stringify(defaultProjects))
-        } else {
-            setProjects(savedProjects)
-        }
+        loadProjects()
     }, [])
 
-    const handleCreateProject = () => {
+    const loadProjects = async () => {
+        try {
+            const response = await projectsAPI.getAll()
+            setProjects(response.data)
+        } catch (error) {
+            console.error('Failed to load projects:', error)
+            // Fallback to empty array if API fails
+            setProjects([])
+        }
+    }
+
+    const handleCreateProject = async () => {
         const newProjectName = prompt("Enter project name:")
         if (newProjectName) {
-            const newProject = {
-                id: Date.now(),
-                name: newProjectName,
-                description: "New project",
-                ticketCount: 0,
-                backlog: []
+            try {
+                const response = await projectsAPI.create({
+                    name: newProjectName,
+                    description: "New project"
+                })
+                setProjects(prev => [...prev, response.data])
+            } catch (error) {
+                console.error('Failed to create project:', error)
+                alert('Failed to create project. Please try again.')
             }
-            const updatedProjects = [...projects, newProject]
-            setProjects(updatedProjects)
-            localStorage.setItem('projects', JSON.stringify(updatedProjects))
         }
     }
 
@@ -44,12 +43,16 @@ function HomePage() {
         navigate(`/project/${projectId}`)
     }
 
-    const handleDeleteProject = (projectId, projectName, e) => {
+    const handleDeleteProject = async (projectId, projectName, e) => {
         e.stopPropagation() // Prevent triggering the project click
         if (window.confirm(`Are you sure you want to delete "${projectName}"? This will also delete all associated tasks.`)) {
-            const updatedProjects = projects.filter(p => p.id !== projectId)
-            setProjects(updatedProjects)
-            localStorage.setItem('projects', JSON.stringify(updatedProjects))
+            try {
+                await projectsAPI.delete(projectId)
+                setProjects(prev => prev.filter(p => p.id !== projectId))
+            } catch (error) {
+                console.error('Failed to delete project:', error)
+                alert('Failed to delete project. Please try again.')
+            }
         }
     }
 
@@ -90,7 +93,7 @@ function HomePage() {
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                                            {project.ticketCount} tickets
+                                            {project.ticketCount || 0} tickets
                                         </span>
                                         <button
                                             onClick={(e) => handleDeleteProject(project.id, project.name, e)}
