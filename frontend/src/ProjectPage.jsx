@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { projectsAPI, ticketsAPI, peopleAPI, ticketPeopleAPI } from './api/apiClient'
+import { projectsAPI, ticketsAPI, peopleAPI, ticketPeopleAPI, ticketDependenciesAPI } from './api/apiClient'
+import ReactMarkdown from 'react-markdown'
 
 function ProjectPage() {
     const { projectId } = useParams()
@@ -23,6 +24,7 @@ function ProjectPage() {
     const [newPerson, setNewPerson] = useState({ name: '', email: '' })
     const [summaries, setSummaries] = useState({})
     const [loadingSummaries, setLoadingSummaries] = useState({})
+    const [editingTask, setEditingTask] = useState(null)
     const [taskActions, setTaskActions] = useState({}) // Track accept/reject actions
     const [dependencySuggestions, setDependencySuggestions] = useState([])
     const [showSuggestions, setShowSuggestions] = useState(false)
@@ -49,9 +51,22 @@ function ProjectPage() {
                     .map(ticket => ({
                         ...ticket,
                         people: ticket.people || [],
-                        dependencies: ticket.dependencies || [],
+                        dependencies: [], // Will be populated by dependency API calls
                         hash: ticket.hash || generateTicketHash()
                     }))
+
+                // Load dependencies for each ticket
+                for (const ticket of projectTickets) {
+                    try {
+                        const ticketDetails = await ticketsAPI.getById(ticket.id)
+                        if (ticketDetails.data.dependencies) {
+                            ticket.dependencies = ticketDetails.data.dependencies.map(dep => `#${dep.dependsOnTicketId}`)
+                        }
+                    } catch (error) {
+                        console.error(`Failed to load dependencies for ticket ${ticket.id}:`, error)
+                    }
+                }
+                
                 setBacklog(projectTickets)
                 
                 // Load people
@@ -83,25 +98,89 @@ function ProjectPage() {
         if (!newTask.title.trim()) return
 
         try {
-            const taskData = {
-                projectId: parseInt(projectId),
-                title: newTask.title,
-                content: newTask.content,
-                decision: newTask.decision,
-                consequences: newTask.consequences,
-                status: newTask.status,
-                isAiGenerated: false
-            }
+            if (editingTask) {
+                // Update existing task
+                const taskData = {
+                    title: newTask.title,
+                    content: newTask.content,
+                    decision: newTask.decision,
+                    consequences: newTask.consequences,
+                    status: newTask.status
+                }
 
-            const response = await ticketsAPI.create(taskData)
-            const newTaskWithHash = {
-                ...response.data,
-                hash: generateTicketHash(),
-                people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
-                dependencies: newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
-            }
+                const response = await ticketsAPI.update(editingTask.id, taskData)
+                const updatedTaskWithHash = {
+                    ...response.data,
+                    hash: editingTask.hash || generateTicketHash(),
+                    people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
+                    dependencies: []
+                }
 
-            setBacklog(prev => [...prev, newTaskWithHash])
+                // Update dependencies using the API
+                const dependencyStrings = newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
+                for (const depString of dependencyStrings) {
+                    // Extract hash from dependency string (format: "Task Name (#HASH)" or just "#HASH")
+                    const hashMatch = depString.match(/#([A-Z0-9]+)/)
+                    if (hashMatch) {
+                        const hash = hashMatch[1]
+                        // Find the task with this hash
+                        const depTask = backlog.find(t => t.hash === hash)
+                        if (depTask) {
+                            try {
+                                await ticketDependenciesAPI.add(editingTask.id, depTask.id)
+                                console.log(`Updated dependency: ${editingTask.id} depends on ${depTask.id}`)
+                            } catch (error) {
+                                console.error('Failed to update dependency:', error)
+                            }
+                        }
+                    }
+                }
+
+                setBacklog(prev => prev.map(task => 
+                    task.id === editingTask.id ? updatedTaskWithHash : task
+                ))
+            } else {
+                // Create new task
+                const taskData = {
+                    projectId: parseInt(projectId),
+                    title: newTask.title,
+                    content: newTask.content,
+                    decision: newTask.decision,
+                    consequences: newTask.consequences,
+                    status: newTask.status,
+                    isAiGenerated: false
+                }
+
+                const response = await ticketsAPI.create(taskData)
+                const newTaskWithHash = {
+                    ...response.data,
+                    hash: generateTicketHash(),
+                    people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
+                    dependencies: []
+                }
+
+                // Create dependencies using the API
+                const dependencyStrings = newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
+                for (const depString of dependencyStrings) {
+                    // Extract hash from dependency string (format: "Task Name (#HASH)" or just "#HASH")
+                    const hashMatch = depString.match(/#([A-Z0-9]+)/)
+                    if (hashMatch) {
+                        const hash = hashMatch[1]
+                        // Find the task with this hash
+                        const depTask = backlog.find(t => t.hash === hash)
+                        if (depTask) {
+                            try {
+                                await ticketDependenciesAPI.add(response.data.id, depTask.id)
+                                console.log(`Created dependency: ${response.data.id} depends on ${depTask.id}`)
+                            } catch (error) {
+                                console.error('Failed to create dependency:', error)
+                            }
+                        }
+                    }
+                }
+
+                setBacklog(prev => [...prev, newTaskWithHash])
+            }
 
             // Reset form and close modal
             setNewTask({
@@ -116,9 +195,10 @@ function ProjectPage() {
             setDependenciesInput('')
             setShowSuggestions(false)
             setShowAddTaskModal(false)
+            setEditingTask(null)
         } catch (error) {
-            console.error('Failed to create task:', error)
-            alert('Failed to create task. Please try again.')
+            console.error('Failed to save task:', error)
+            alert('Failed to save task. Please try again.')
         }
     }
 
@@ -218,6 +298,21 @@ function ProjectPage() {
         } finally {
             setLoadingSummaries(prev => ({ ...prev, [taskId]: false }))
         }
+    }
+
+    const handleEditTask = (task) => {
+        setEditingTask(task)
+        setNewTask({
+            title: task.title,
+            content: task.content || '',
+            decision: task.decision || '',
+            consequences: task.consequences || '',
+            people: task.people ? task.people.join(', ') : '',
+            dependencies: task.dependencies ? task.dependencies.join(', ') : '',
+            status: task.status
+        })
+        setDependenciesInput(task.dependencies ? task.dependencies.join(', ') : '')
+        setShowAddTaskModal(true)
     }
 
     const getStatusColor = (status) => {
@@ -454,36 +549,46 @@ function ProjectPage() {
                                                 {summaries[task.id] && (
                                                     <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                                                         <h4 className="text-sm font-semibold text-purple-800 mb-2">AI Summary</h4>
-                                                        <p className="text-sm text-purple-700">{summaries[task.id]}</p>
+                                                        <div className="text-sm text-purple-700 prose prose-sm max-w-none">
+                                                            <ReactMarkdown
+                                                                components={{
+                                                                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                                                    strong: ({ children }) => <strong className="font-semibold text-purple-900">{children}</strong>,
+                                                                    br: () => <br />
+                                                                }}
+                                                            >
+                                                                {summaries[task.id]}
+                                                            </ReactMarkdown>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
                                             <div className="flex gap-2 ml-4">
                                                 {task.isAiGenerated && !taskActions[task.id] && (
                                                     <>
-                                                        <button
-                                                            onClick={() => handleAcceptTask(task.id)}
-                                                            className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
-                                                        >
-                                                            Accept
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleRejectTask(task.id)}
-                                                            className="px-3 py-1 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors"
-                                                        >
-                                                            Reject
-                                                        </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleAcceptTask(task.id); }}
+                                                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
+                                                >
+                                                    Accept
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleRejectTask(task.id); }}
+                                                    className="px-3 py-1 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors"
+                                                >
+                                                    Reject
+                                                </button>
                                                     </>
                                                 )}
                                                 <button
-                                                    onClick={() => handleSummarizeTicket(task.id)}
+                                                    onClick={(e) => { e.stopPropagation(); handleSummarizeTicket(task.id); }}
                                                     disabled={loadingSummaries[task.id]}
                                                     className="px-3 py-1 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50"
                                                 >
                                                     {loadingSummaries[task.id] ? 'Summarizing...' : 'Summarize'}
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDeleteTask(task.id)}
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id); }}
                                                     className="px-3 py-1 bg-slate-500 text-white text-sm rounded-lg hover:bg-slate-600 transition-colors hover:cursor-pointer"
                                                 >
                                                     Delete
@@ -508,7 +613,7 @@ function ProjectPage() {
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
                     <div className="bg-white backdrop-blur-xl rounded-2xl border border-slate-200/50 p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-2xl font-bold text-slate-800">Add New Task</h2>
+                            <h2 className="text-2xl font-bold text-slate-800">{editingTask ? 'Edit Task' : 'Add New Task'}</h2>
                             <button
                                 onClick={() => setShowAddTaskModal(false)}
                                 className="p-2 hover:bg-white/50 rounded-lg transition-colors"
@@ -614,10 +719,23 @@ function ProjectPage() {
                                 onClick={handleAddTask}
                                 className="px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-medium hover:from-slate-700 hover:to-slate-800 transition-all duration-300"
                             >
-                                Add Task
+                                {editingTask ? 'Update Task' : 'Add Task'}
                             </button>
                             <button
-                                onClick={() => setShowAddTaskModal(false)}
+                                onClick={() => {
+                                    setShowAddTaskModal(false)
+                                    setEditingTask(null)
+                                    setNewTask({
+                                        title: '',
+                                        content: '',
+                                        decision: '',
+                                        consequences: '',
+                                        people: '',
+                                        dependencies: '',
+                                        status: 'To Do'
+                                    })
+                                    setDependenciesInput('')
+                                }}
                                 className="px-6 py-3 bg-white/50 text-slate-700 rounded-xl font-medium hover:bg-white/70 transition-all duration-300 border border-slate-200"
                             >
                                 Cancel

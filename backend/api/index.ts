@@ -23,7 +23,13 @@ const relevanceClient = createClient({
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path} - Body:`, req.body);
+    next();
+});
 
 apiRouter.get('/', (req, res) => {
     res.json({ message: 'Hello World!' });
@@ -625,7 +631,14 @@ app.get('/api/tickets', async (req, res) => {
 
 app.post('/api/tickets', async (req, res) => {
     console.log('Backend: POST /api/tickets', req.body);
+    console.log('Backend: Request headers:', req.headers);
+    console.log('Backend: Content-Type:', req.get('Content-Type'));
+    
     try {
+        if (!req.body) {
+            return res.status(400).json({ error: 'Request body is required' });
+        }
+        
         const { projectId, title, content, decision, consequences, status, isAiGenerated } = req.body;
         
         if (!projectId || !title) {
