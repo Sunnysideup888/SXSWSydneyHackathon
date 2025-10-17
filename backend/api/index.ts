@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { tickets, projects } from '../db/schema/schema';
+import { tickets, projects, people } from '../db/schema/schema';
 
 
 const app = express();
@@ -52,11 +52,67 @@ app.post('/api/projects', async (req, res) => {
     }
 });
 
+// People routes
+app.get('/api/people', async (req, res) => {
+    try {
+        const data = await db.select().from(people);
+        res.status(200).json(data);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/people', async (req, res) => {
+    try {
+        const { name, email } = req.body;
+        
+        if (!name) {
+            return res.status(400).json({ error: 'Name is required' });
+        }
+
+        const [newPerson] = await db.insert(people).values({
+            name,
+            email: email || null,
+        }).returning();
+
+        res.status(201).json(newPerson);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Tickets routes
 app.get('/api/tickets', async (req, res) => {
     try {
         const data = await db.select().from(tickets);
         res.status(200).json(data);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/tickets', async (req, res) => {
+    try {
+        const { projectId, title, content, decision, consequences, status, isAiGenerated } = req.body;
+        
+        if (!projectId || !title) {
+            return res.status(400).json({ error: 'projectId and title are required' });
+        }
+
+        const [newTicket] = await db.insert(tickets).values({
+            projectId: parseInt(projectId),
+            title,
+            content: content || null,
+            decision: decision || null,
+            consequences: consequences || null,
+            status: status || 'To Do',
+            isAiGenerated: isAiGenerated || false,
+        }).returning();
+
+        res.status(201).json(newTicket);
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ error: error.message });
