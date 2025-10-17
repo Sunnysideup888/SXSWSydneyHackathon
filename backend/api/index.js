@@ -28,6 +28,18 @@ app.get('/api/tasks', async (req, res) => {
     res.status(200).json(data);
 });
 
+app.get('/api/tickets', async (req, res) => {
+    const { data, error } = await supabase
+        .from('tickets')
+        .select('*');
+
+    if (error) {
+        return res.status(500).json({ error: error.message });
+    }
+    res.status(200).json(data);
+});
+
+
 if (process.env.NODE_ENV !== 'production') {
     app.listen(port, () => {
         console.log(`Server running on http://localhost:${port}`);
