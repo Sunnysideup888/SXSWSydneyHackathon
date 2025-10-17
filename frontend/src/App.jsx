@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom'
 import ProjectPage from './ProjectPage'
+import ScrumBoard from './ScrumBoard'
 
 function HomePage() {
     const navigate = useNavigate()
@@ -169,6 +170,7 @@ function App() {
             <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/project/:projectId" element={<ProjectPage />} />
+                <Route path="/project/:projectId/scrum" element={<ScrumBoard />} />
             </Routes>
         </Router>
     )

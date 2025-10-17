@@ -12,8 +12,11 @@ function ProjectPage() {
         decision: '',
         consequences: '',
         people: '',
-        dependencies: ''
+        dependencies: '',
+        status: 'queued'
     })
+    const [showAddTaskModal, setShowAddTaskModal] = useState(false)
+    const [taskActions, setTaskActions] = useState({}) // Track accept/reject actions
 
     // Load project and backlog data from localStorage
     useEffect(() => {
@@ -37,7 +40,7 @@ function ProjectPage() {
             consequences: newTask.consequences,
             people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
             dependencies: newTask.dependencies.split(',').map(d => d.trim()).filter(d => d),
-            status: 'backlog',
+            status: newTask.status,
             is_ai_generated: false,
             created_at: new Date().toISOString()
         }
@@ -54,15 +57,17 @@ function ProjectPage() {
         )
         localStorage.setItem('projects', JSON.stringify(updatedProjects))
 
-        // Reset form
+        // Reset form and close modal
         setNewTask({
             title: '',
             context: '',
             decision: '',
             consequences: '',
             people: '',
-            dependencies: ''
+            dependencies: '',
+            status: 'queued'
         })
+        setShowAddTaskModal(false)
     }
 
     const handleAutoTranslate = () => {
@@ -75,7 +80,7 @@ function ProjectPage() {
             consequences: 'Implementing this will improve team workflow',
             people: ['AI Assistant'],
             dependencies: [],
-            status: 'backlog',
+            status: 'queued',
             is_ai_generated: true,
             created_at: new Date().toISOString()
         }
@@ -107,6 +112,9 @@ function ProjectPage() {
                 : p
         )
         localStorage.setItem('projects', JSON.stringify(updatedProjects))
+
+        // Track the action for visual feedback
+        setTaskActions(prev => ({ ...prev, [taskId]: 'accepted' }))
     }
 
     const handleRejectTask = (taskId) => {
@@ -121,6 +129,45 @@ function ProjectPage() {
                 : p
         )
         localStorage.setItem('projects', JSON.stringify(updatedProjects))
+
+        // Track the action for visual feedback
+        setTaskActions(prev => ({ ...prev, [taskId]: 'rejected' }))
+    }
+
+    const handleDeleteTask = (taskId) => {
+        const updatedBacklog = backlog.filter(task => task.id !== taskId)
+        setBacklog(updatedBacklog)
+
+        // Update localStorage
+        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
+        const updatedProjects = projects.map(p => 
+            p.id === parseInt(projectId) 
+                ? { ...p, backlog: updatedBacklog }
+                : p
+        )
+        localStorage.setItem('projects', JSON.stringify(updatedProjects))
+    }
+
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'queued': return 'bg-gray-100 text-gray-700 border-gray-200'
+            case 'in_dev': return 'bg-blue-100 text-blue-700 border-blue-200'
+            case 'in_test': return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+            case 'in_review': return 'bg-purple-100 text-purple-700 border-purple-200'
+            case 'completed': return 'bg-green-100 text-green-700 border-green-200'
+            default: return 'bg-gray-100 text-gray-700 border-gray-200'
+        }
+    }
+
+    const getStatusLabel = (status) => {
+        switch (status) {
+            case 'queued': return 'Queued'
+            case 'in_dev': return 'In Dev'
+            case 'in_test': return 'In Test'
+            case 'in_review': return 'In Review'
+            case 'completed': return 'Completed'
+            default: return 'Queued'
+        }
     }
 
     if (!project) {
@@ -162,7 +209,10 @@ function ProjectPage() {
                             <button className="w-full text-left p-3 rounded-xl bg-white/30 border border-slate-200/50 text-slate-800 font-medium">
                                 Backlog
                             </button>
-                            <button className="w-full text-left p-3 rounded-xl bg-white/10 border border-slate-200/30 text-slate-600 hover:bg-white/20 transition-colors">
+                            <button 
+                                onClick={() => navigate(`/project/${projectId}/scrum`)}
+                                className="w-full text-left p-3 rounded-xl bg-white/10 border border-slate-200/30 text-slate-600 hover:bg-white/20 transition-colors"
+                            >
                                 SCRUM Board
                             </button>
                         </div>
@@ -182,133 +232,99 @@ function ProjectPage() {
                         <div className="bg-white/30 backdrop-blur-xl rounded-2xl border border-slate-200/50 p-6">
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-2xl font-semibold text-slate-800">Backlog</h2>
-                                <button
-                                    onClick={handleAutoTranslate}
-                                    className="px-4 py-2 bg-gradient-to-r from-emerald-400 to-emerald-500 text-white rounded-xl font-medium hover:from-emerald-500 hover:to-emerald-600 transition-all duration-300"
-                                >
-                                    Auto-Translate
-                                </button>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowAddTaskModal(true)}
+                                        className="px-4 py-2 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-medium hover:from-slate-700 hover:to-slate-800 transition-all duration-300"
+                                    >
+                                        + Add Task
+                                    </button>
+                                    <button
+                                        onClick={handleAutoTranslate}
+                                        className="px-4 py-2 bg-gradient-to-r from-emerald-400 to-emerald-500 text-white rounded-xl font-medium hover:from-emerald-500 hover:to-emerald-600 transition-all duration-300"
+                                    >
+                                        Auto-Translate
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Add Task Form */}
-                            <div className="bg-white/40 rounded-xl p-6 mb-6 border border-slate-200/50">
-                                <h3 className="text-lg font-semibold text-slate-800 mb-4">Add New Task</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">Title *</label>
-                                        <input
-                                            type="text"
-                                            value={newTask.title}
-                                            onChange={(e) => setNewTask({...newTask, title: e.target.value})}
-                                            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                                            placeholder="Task title"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">People (comma-separated)</label>
-                                        <input
-                                            type="text"
-                                            value={newTask.people}
-                                            onChange={(e) => setNewTask({...newTask, people: e.target.value})}
-                                            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                                            placeholder="@john, @jane"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">Context</label>
-                                        <textarea
-                                            value={newTask.context}
-                                            onChange={(e) => setNewTask({...newTask, context: e.target.value})}
-                                            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                                            rows="3"
-                                            placeholder="Why is this needed?"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">Decision</label>
-                                        <textarea
-                                            value={newTask.decision}
-                                            onChange={(e) => setNewTask({...newTask, decision: e.target.value})}
-                                            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                                            rows="3"
-                                            placeholder="What was decided?"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">Consequences</label>
-                                        <textarea
-                                            value={newTask.consequences}
-                                            onChange={(e) => setNewTask({...newTask, consequences: e.target.value})}
-                                            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                                            rows="3"
-                                            placeholder="What are the consequences?"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-2">Dependencies (comma-separated)</label>
-                                        <input
-                                            type="text"
-                                            value={newTask.dependencies}
-                                            onChange={(e) => setNewTask({...newTask, dependencies: e.target.value})}
-                                            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                                            placeholder="@ticket#123, @ticket#456"
-                                        />
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleAddTask}
-                                    className="mt-4 px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-medium hover:from-slate-700 hover:to-slate-800 transition-all duration-300"
-                                >
-                                    Add Task
-                                </button>
-                            </div>
 
                             {/* Task List */}
-                            <div className="space-y-4">
+                            <div className="space-y-2">
                                 {backlog.map((task) => (
-                                    <div key={task.id} className="bg-white/40 rounded-xl p-4 border border-slate-200/50">
-                                        <div className="flex items-start justify-between">
+                                    <div key={task.id} className={`bg-white/40 rounded-lg p-3 border border-slate-200/50 transition-all duration-300 ${
+                                        taskActions[task.id] === 'accepted' ? 'opacity-60 bg-green-50/40' : 
+                                        taskActions[task.id] === 'rejected' ? 'opacity-60 bg-red-50/40' : ''
+                                    }`}>
+                                        <div className="flex items-center justify-between">
                                             <div className="flex-1">
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <h3 className="text-lg font-semibold text-slate-800">{task.title}</h3>
+                                                <div className="flex items-center gap-3">
+                                                    <h3 className="text-base font-semibold text-slate-800">{task.title}</h3>
+                                                    <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(task.status)}`}>
+                                                        {getStatusLabel(task.status)}
+                                                    </span>
                                                     {task.is_ai_generated && (
-                                                        <span className="px-2 py-1 bg-gradient-to-r from-emerald-400 to-emerald-500 text-white text-xs rounded-full">
+                                                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
                                                             AI Generated
                                                         </span>
                                                     )}
+                                                    {taskActions[task.id] === 'accepted' && (
+                                                        <span className="px-2 py-1 bg-green-500 text-white text-xs rounded-full">
+                                                            Accepted
+                                                        </span>
+                                                    )}
+                                                    {taskActions[task.id] === 'rejected' && (
+                                                        <span className="px-2 py-1 bg-red-500 text-white text-xs rounded-full">
+                                                            Rejected
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                {task.context && (
-                                                    <p className="text-slate-600 text-sm mb-2"><strong>Context:</strong> {task.context}</p>
-                                                )}
-                                                {task.decision && (
-                                                    <p className="text-slate-600 text-sm mb-2"><strong>Decision:</strong> {task.decision}</p>
-                                                )}
-                                                {task.consequences && (
-                                                    <p className="text-slate-600 text-sm mb-2"><strong>Consequences:</strong> {task.consequences}</p>
-                                                )}
-                                                {task.people.length > 0 && (
-                                                    <p className="text-slate-600 text-sm mb-2"><strong>People:</strong> {task.people.join(', ')}</p>
-                                                )}
-                                                {task.dependencies.length > 0 && (
-                                                    <p className="text-slate-600 text-sm"><strong>Dependencies:</strong> {task.dependencies.join(', ')}</p>
-                                                )}
+                                                <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
+                                                    {task.context && <span>Context: {task.context.substring(0, 50)}...</span>}
+                                                </div>
+                                                <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
+                                                    {task.people.length > 0 && (
+                                                        <span className="flex items-center gap-1">
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                                                            </svg>
+                                                            {task.people.join(', ')}
+                                                        </span>
+                                                    )}
+                                                    {task.dependencies.length > 0 && (
+                                                        <span className="flex items-center gap-1">
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                                            </svg>
+                                                            {task.dependencies.join(', ')}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            {task.is_ai_generated && (
-                                                <div className="flex gap-2 ml-4">
-                                                    <button
-                                                        onClick={() => handleAcceptTask(task.id)}
-                                                        className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
-                                                    >
-                                                        Accept
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleRejectTask(task.id)}
-                                                        className="px-3 py-1 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors"
-                                                    >
-                                                        Reject
-                                                    </button>
-                                                </div>
-                                            )}
+                                            <div className="flex gap-2 ml-4">
+                                                {task.is_ai_generated && !taskActions[task.id] && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleAcceptTask(task.id)}
+                                                            className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
+                                                        >
+                                                            Accept
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRejectTask(task.id)}
+                                                            className="px-3 py-1 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors"
+                                                        >
+                                                            Reject
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <button
+                                                    onClick={() => handleDeleteTask(task.id)}
+                                                    className="px-3 py-1 bg-slate-500 text-white text-sm rounded-lg hover:bg-slate-600 transition-colors hover:cursor-pointer"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -322,6 +338,117 @@ function ProjectPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Add Task Modal */}
+            {showAddTaskModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white backdrop-blur-xl rounded-2xl border border-slate-200/50 p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-slate-800">Add New Task</h2>
+                            <button
+                                onClick={() => setShowAddTaskModal(false)}
+                                className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+                            >
+                                <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Title *</label>
+                                <input
+                                    type="text"
+                                    value={newTask.title}
+                                    onChange={(e) => setNewTask({...newTask, title: e.target.value})}
+                                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                    placeholder="Task title"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">People (comma-separated)</label>
+                                <input
+                                    type="text"
+                                    value={newTask.people}
+                                    onChange={(e) => setNewTask({...newTask, people: e.target.value})}
+                                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                    placeholder="@john, @jane"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Context</label>
+                                <textarea
+                                    value={newTask.context}
+                                    onChange={(e) => setNewTask({...newTask, context: e.target.value})}
+                                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                    rows="3"
+                                    placeholder="Why is this needed?"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Decision</label>
+                                <textarea
+                                    value={newTask.decision}
+                                    onChange={(e) => setNewTask({...newTask, decision: e.target.value})}
+                                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                    rows="3"
+                                    placeholder="What was decided?"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Consequences</label>
+                                <textarea
+                                    value={newTask.consequences}
+                                    onChange={(e) => setNewTask({...newTask, consequences: e.target.value})}
+                                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                    rows="3"
+                                    placeholder="What are the consequences?"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Dependencies (comma-separated)</label>
+                                <input
+                                    type="text"
+                                    value={newTask.dependencies}
+                                    onChange={(e) => setNewTask({...newTask, dependencies: e.target.value})}
+                                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                    placeholder="@ticket#123, @ticket#456"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+                                <select
+                                    value={newTask.status}
+                                    onChange={(e) => setNewTask({...newTask, status: e.target.value})}
+                                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                >
+                                    <option value="queued">Queued</option>
+                                    <option value="in_dev">In Dev</option>
+                                    <option value="in_test">In Test</option>
+                                    <option value="in_review">In Review</option>
+                                    <option value="completed">Completed</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 mt-8">
+                            <button
+                                onClick={handleAddTask}
+                                className="px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-medium hover:from-slate-700 hover:to-slate-800 transition-all duration-300"
+                            >
+                                Add Task
+                            </button>
+                            <button
+                                onClick={() => setShowAddTaskModal(false)}
+                                className="px-6 py-3 bg-white/50 text-slate-700 rounded-xl font-medium hover:bg-white/70 transition-all duration-300 border border-slate-200"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
