@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "tsx api/index.ts",
+    "start": "node --loader tsx/esm api/index.ts",
     "build": "tsc",
     "dev": "tsx api/index.ts",
     "db:generate": "drizzle-kit generate",
@@ -18,7 +18,7 @@
   "license": "ISC",
   "description": "",
   "engines": {
-    "node": ">=18.0.0"
+    "node": "20.x"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
