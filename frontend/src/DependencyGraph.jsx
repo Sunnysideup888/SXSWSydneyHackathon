@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import * as d3 from 'd3';
 
 const DependencyGraph = () => {
-  const { ticketId } = useParams();
+  const { projectId, ticketId } = useParams();
+  const navigate = useNavigate();
   const [dependencyData, setDependencyData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -409,10 +410,10 @@ const DependencyGraph = () => {
         {/* Back Button */}
         <div className="mt-8 text-center">
           <button
-            onClick={() => window.history.back()}
+            onClick={() => navigate(`/project/${projectId}`)}
             className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition-colors"
           >
-            ← Back
+            ← Back to Project
           </button>
         </div>
       </div>

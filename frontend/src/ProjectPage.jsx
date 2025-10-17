@@ -391,7 +391,7 @@ function ProjectPage() {
                                 {backlog.map((task) => (
                                     <div 
                                         key={task.id} 
-                                        onClick={() => navigate(`/ticket/${task.id}/dependencies`)}
+                                        onClick={() => navigate(`/project/${projectId}/ticket/${task.id}/dependencies`)}
                                         className={`bg-white/40 rounded-lg p-3 border border-slate-200/50 transition-all duration-300 cursor-pointer hover:bg-white/60 hover:shadow-md ${
                                             taskActions[task.id] === 'accepted' ? 'opacity-60 bg-green-50/40' : 
                                             taskActions[task.id] === 'rejected' ? 'opacity-60 bg-red-50/40' : ''

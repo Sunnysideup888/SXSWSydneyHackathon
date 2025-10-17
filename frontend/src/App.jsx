@@ -193,7 +193,7 @@ function App() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/project/:projectId" element={<ProjectPage />} />
                 <Route path="/project/:projectId/scrum" element={<ScrumBoard />} />
-                <Route path="/ticket/:ticketId/dependencies" element={<DependencyGraph />} />
+                <Route path="/project/:projectId/ticket/:ticketId/dependencies" element={<DependencyGraph />} />
             </Routes>
         </Router>
     )

@@ -181,7 +181,7 @@ function ScrumBoard() {
                                     {getColumnTasks(status).map((task) => (
                                         <div 
                                             key={task.id} 
-                                            onClick={() => navigate(`/ticket/${task.id}/dependencies`)}
+                                            onClick={() => navigate(`/project/${projectId}/ticket/${task.id}/dependencies`)}
                                             className="bg-white/80 backdrop-blur-sm rounded-xl p-3 border border-slate-200/50 shadow-sm cursor-pointer hover:bg-white/90 hover:shadow-lg transition-all duration-300"
                                         >
                                             <div className="flex items-start justify-between mb-2">
