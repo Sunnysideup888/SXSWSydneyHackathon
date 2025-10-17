@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { projectsAPI, ticketsAPI } from './api/apiClient'
+import { projectsAPI, ticketsAPI, ticketDependenciesAPI } from './api/apiClient'
+import ReactMarkdown from 'react-markdown'
 
 function ScrumBoard() {
     const { projectId } = useParams()
@@ -39,9 +40,22 @@ function ScrumBoard() {
                     .map(ticket => ({
                         ...ticket,
                         people: ticket.people || [],
-                        dependencies: ticket.dependencies || [],
+                        dependencies: [], // Will be populated by dependency API calls
                         hash: ticket.hash || generateTicketHash()
                     }))
+
+                // Load dependencies for each ticket
+                for (const ticket of projectTickets) {
+                    try {
+                        const ticketDetails = await ticketsAPI.getById(ticket.id)
+                        if (ticketDetails.data.dependencies) {
+                            ticket.dependencies = ticketDetails.data.dependencies.map(dep => `#${dep.dependsOnTicketId}`)
+                        }
+                    } catch (error) {
+                        console.error(`Failed to load dependencies for ticket ${ticket.id}:`, error)
+                    }
+                }
+                
                 setTasks(projectTickets)
             }
         } catch (error) {

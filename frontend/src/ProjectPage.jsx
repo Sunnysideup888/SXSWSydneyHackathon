@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { projectsAPI, ticketsAPI, peopleAPI, ticketPeopleAPI } from './api/apiClient'
+import { projectsAPI, ticketsAPI, peopleAPI, ticketPeopleAPI, ticketDependenciesAPI } from './api/apiClient'
+import ReactMarkdown from 'react-markdown'
 
 function ProjectPage() {
     const { projectId } = useParams()
@@ -50,9 +51,22 @@ function ProjectPage() {
                     .map(ticket => ({
                         ...ticket,
                         people: ticket.people || [],
-                        dependencies: ticket.dependencies || [],
+                        dependencies: [], // Will be populated by dependency API calls
                         hash: ticket.hash || generateTicketHash()
                     }))
+
+                // Load dependencies for each ticket
+                for (const ticket of projectTickets) {
+                    try {
+                        const ticketDetails = await ticketsAPI.getById(ticket.id)
+                        if (ticketDetails.data.dependencies) {
+                            ticket.dependencies = ticketDetails.data.dependencies.map(dep => `#${dep.dependsOnTicketId}`)
+                        }
+                    } catch (error) {
+                        console.error(`Failed to load dependencies for ticket ${ticket.id}:`, error)
+                    }
+                }
+                
                 setBacklog(projectTickets)
                 
                 // Load people
@@ -99,7 +113,27 @@ function ProjectPage() {
                     ...response.data,
                     hash: editingTask.hash || generateTicketHash(),
                     people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
-                    dependencies: newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
+                    dependencies: []
+                }
+
+                // Update dependencies using the API
+                const dependencyStrings = newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
+                for (const depString of dependencyStrings) {
+                    // Extract hash from dependency string (format: "Task Name (#HASH)" or just "#HASH")
+                    const hashMatch = depString.match(/#([A-Z0-9]+)/)
+                    if (hashMatch) {
+                        const hash = hashMatch[1]
+                        // Find the task with this hash
+                        const depTask = backlog.find(t => t.hash === hash)
+                        if (depTask) {
+                            try {
+                                await ticketDependenciesAPI.add(editingTask.id, depTask.id)
+                                console.log(`Updated dependency: ${editingTask.id} depends on ${depTask.id}`)
+                            } catch (error) {
+                                console.error('Failed to update dependency:', error)
+                            }
+                        }
+                    }
                 }
 
                 setBacklog(prev => prev.map(task => 
@@ -122,7 +156,27 @@ function ProjectPage() {
                     ...response.data,
                     hash: generateTicketHash(),
                     people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
-                    dependencies: newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
+                    dependencies: []
+                }
+
+                // Create dependencies using the API
+                const dependencyStrings = newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
+                for (const depString of dependencyStrings) {
+                    // Extract hash from dependency string (format: "Task Name (#HASH)" or just "#HASH")
+                    const hashMatch = depString.match(/#([A-Z0-9]+)/)
+                    if (hashMatch) {
+                        const hash = hashMatch[1]
+                        // Find the task with this hash
+                        const depTask = backlog.find(t => t.hash === hash)
+                        if (depTask) {
+                            try {
+                                await ticketDependenciesAPI.add(response.data.id, depTask.id)
+                                console.log(`Created dependency: ${response.data.id} depends on ${depTask.id}`)
+                            } catch (error) {
+                                console.error('Failed to create dependency:', error)
+                            }
+                        }
+                    }
                 }
 
                 setBacklog(prev => [...prev, newTaskWithHash])
@@ -491,7 +545,17 @@ function ProjectPage() {
                                                 {summaries[task.id] && (
                                                     <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                                                         <h4 className="text-sm font-semibold text-purple-800 mb-2">AI Summary</h4>
-                                                        <p className="text-sm text-purple-700">{summaries[task.id]}</p>
+                                                        <div className="text-sm text-purple-700 prose prose-sm max-w-none">
+                                                            <ReactMarkdown
+                                                                components={{
+                                                                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                                                    strong: ({ children }) => <strong className="font-semibold text-purple-900">{children}</strong>,
+                                                                    br: () => <br />
+                                                                }}
+                                                            >
+                                                                {summaries[task.id]}
+                                                            </ReactMarkdown>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
