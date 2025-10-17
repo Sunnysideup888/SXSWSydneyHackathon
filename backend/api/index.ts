@@ -53,6 +53,80 @@ app.post('/api/projects', async (req, res) => {
     }
 });
 
+app.get('/api/projects/:projectId', async (req, res) => {
+    try {
+        const { projectId } = req.params;
+        
+        // Get project details
+        const project = await db.select().from(projects)
+            .where(eq(projects.id, parseInt(projectId)))
+            .limit(1);
+
+        if (project.length === 0) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
+        // Get tickets for this project
+        const projectTickets = await db.select({
+            id: tickets.id,
+            title: tickets.title,
+            content: tickets.content,
+            decision: tickets.decision,
+            consequences: tickets.consequences,
+            status: tickets.status,
+            isAiGenerated: tickets.isAiGenerated,
+            createdAt: tickets.createdAt,
+        })
+        .from(tickets)
+        .where(eq(tickets.projectId, parseInt(projectId)));
+
+        // Combine project data with tickets
+        const projectWithTickets = {
+            ...project[0],
+            tickets: projectTickets
+        };
+
+        res.status(200).json(projectWithTickets);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update project
+app.put('/api/projects/:projectId', async (req, res) => {
+    try {
+        const { projectId } = req.params;
+        const { name, description } = req.body;
+        
+        // Check if project exists
+        const existingProject = await db.select().from(projects)
+            .where(eq(projects.id, parseInt(projectId)))
+            .limit(1);
+
+        if (existingProject.length === 0) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
+        // Prepare update data (only include fields that are provided)
+        const updateData: any = {};
+        if (name !== undefined) updateData.name = name;
+        if (description !== undefined) updateData.description = description;
+        updateData.updatedAt = new Date();
+
+        // Update project
+        const [updatedProject] = await db.update(projects)
+            .set(updateData)
+            .where(eq(projects.id, parseInt(projectId)))
+            .returning();
+
+        res.status(200).json(updatedProject);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // People routes
 app.get('/api/people', async (req, res) => {
     try {
@@ -346,6 +420,52 @@ app.post('/api/tickets', async (req, res) => {
         }).returning();
 
         res.status(201).json(newTicket);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update ticket
+app.put('/api/tickets/:ticketId', async (req, res) => {
+    try {
+        const { ticketId } = req.params;
+        const { 
+            projectId, 
+            title, 
+            content, 
+            decision, 
+            consequences, 
+            status, 
+            isAiGenerated 
+        } = req.body;
+        
+        // Check if ticket exists
+        const existingTicket = await db.select().from(tickets)
+            .where(eq(tickets.id, parseInt(ticketId)))
+            .limit(1);
+
+        if (existingTicket.length === 0) {
+            return res.status(404).json({ error: 'Ticket not found' });
+        }
+
+        // Prepare update data (only include fields that are provided)
+        const updateData: any = {};
+        if (projectId !== undefined) updateData.projectId = parseInt(projectId);
+        if (title !== undefined) updateData.title = title;
+        if (content !== undefined) updateData.content = content;
+        if (decision !== undefined) updateData.decision = decision;
+        if (consequences !== undefined) updateData.consequences = consequences;
+        if (status !== undefined) updateData.status = status;
+        if (isAiGenerated !== undefined) updateData.isAiGenerated = isAiGenerated;
+
+        // Update ticket
+        const [updatedTicket] = await db.update(tickets)
+            .set(updateData)
+            .where(eq(tickets.id, parseInt(ticketId)))
+            .returning();
+
+        res.status(200).json(updatedTicket);
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ error: error.message });
