@@ -345,12 +345,12 @@ function ProjectPage() {
                                                     </span>
                                                     {task.is_ai_generated && (
                                                         <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
-                                                            AI Generated
+                                                            AI Transcribed
                                                         </span>
                                                     )}
                                                     {taskActions[task.id] === 'accepted' && (
                                                         <span className="px-2 py-1 bg-green-500 text-white text-xs rounded-full">
-                                                            Accepted
+                                                            AI
                                                         </span>
                                                     )}
                                                     {taskActions[task.id] === 'rejected' && (

@@ -44,6 +44,15 @@ function HomePage() {
         navigate(`/project/${projectId}`)
     }
 
+    const handleDeleteProject = (projectId, projectName, e) => {
+        e.stopPropagation() // Prevent triggering the project click
+        if (window.confirm(`Are you sure you want to delete "${projectName}"? This will also delete all associated tasks.`)) {
+            const updatedProjects = projects.filter(p => p.id !== projectId)
+            setProjects(updatedProjects)
+            localStorage.setItem('projects', JSON.stringify(updatedProjects))
+        }
+    }
+
     return (
         <>
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
@@ -73,7 +82,7 @@ function HomePage() {
                                 className="group p-4 rounded-xl bg-white/30 hover:bg-white/40 border border-slate-200/50 hover:border-slate-300/60 transition-all duration-300 cursor-pointer"
                             >
                                 <div className="flex items-center justify-between">
-                                    <div>
+                                    <div className="flex-1">
                                         <h3 className="text-slate-800 font-medium group-hover:text-slate-600 transition-colors">
                                             {project.name}
                                         </h3>
@@ -83,6 +92,15 @@ function HomePage() {
                                         <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
                                             {project.ticketCount} tickets
                                         </span>
+                                        <button
+                                            onClick={(e) => handleDeleteProject(project.id, project.name, e)}
+                                            className="p-1 hover:bg-red-100 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                            title="Delete project"
+                                        >
+                                            <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
                                         <svg className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                         </svg>
