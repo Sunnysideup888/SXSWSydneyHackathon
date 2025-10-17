@@ -23,6 +23,7 @@ function ProjectPage() {
     const [newPerson, setNewPerson] = useState({ name: '', email: '' })
     const [summaries, setSummaries] = useState({})
     const [loadingSummaries, setLoadingSummaries] = useState({})
+    const [editingTask, setEditingTask] = useState(null)
     const [taskActions, setTaskActions] = useState({}) // Track accept/reject actions
     const [dependencySuggestions, setDependencySuggestions] = useState([])
     const [showSuggestions, setShowSuggestions] = useState(false)
@@ -83,25 +84,49 @@ function ProjectPage() {
         if (!newTask.title.trim()) return
 
         try {
-            const taskData = {
-                projectId: parseInt(projectId),
-                title: newTask.title,
-                content: newTask.content,
-                decision: newTask.decision,
-                consequences: newTask.consequences,
-                status: newTask.status,
-                isAiGenerated: false
-            }
+            if (editingTask) {
+                // Update existing task
+                const taskData = {
+                    title: newTask.title,
+                    content: newTask.content,
+                    decision: newTask.decision,
+                    consequences: newTask.consequences,
+                    status: newTask.status
+                }
 
-            const response = await ticketsAPI.create(taskData)
-            const newTaskWithHash = {
-                ...response.data,
-                hash: generateTicketHash(),
-                people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
-                dependencies: newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
-            }
+                const response = await ticketsAPI.update(editingTask.id, taskData)
+                const updatedTaskWithHash = {
+                    ...response.data,
+                    hash: editingTask.hash || generateTicketHash(),
+                    people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
+                    dependencies: newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
+                }
 
-            setBacklog(prev => [...prev, newTaskWithHash])
+                setBacklog(prev => prev.map(task => 
+                    task.id === editingTask.id ? updatedTaskWithHash : task
+                ))
+            } else {
+                // Create new task
+                const taskData = {
+                    projectId: parseInt(projectId),
+                    title: newTask.title,
+                    content: newTask.content,
+                    decision: newTask.decision,
+                    consequences: newTask.consequences,
+                    status: newTask.status,
+                    isAiGenerated: false
+                }
+
+                const response = await ticketsAPI.create(taskData)
+                const newTaskWithHash = {
+                    ...response.data,
+                    hash: generateTicketHash(),
+                    people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
+                    dependencies: newTask.dependencies.split(',').map(d => d.trim()).filter(d => d)
+                }
+
+                setBacklog(prev => [...prev, newTaskWithHash])
+            }
 
             // Reset form and close modal
             setNewTask({
@@ -116,9 +141,10 @@ function ProjectPage() {
             setDependenciesInput('')
             setShowSuggestions(false)
             setShowAddTaskModal(false)
+            setEditingTask(null)
         } catch (error) {
-            console.error('Failed to create task:', error)
-            alert('Failed to create task. Please try again.')
+            console.error('Failed to save task:', error)
+            alert('Failed to save task. Please try again.')
         }
     }
 
@@ -218,6 +244,21 @@ function ProjectPage() {
         } finally {
             setLoadingSummaries(prev => ({ ...prev, [taskId]: false }))
         }
+    }
+
+    const handleEditTask = (task) => {
+        setEditingTask(task)
+        setNewTask({
+            title: task.title,
+            content: task.content || '',
+            decision: task.decision || '',
+            consequences: task.consequences || '',
+            people: task.people ? task.people.join(', ') : '',
+            dependencies: task.dependencies ? task.dependencies.join(', ') : '',
+            status: task.status
+        })
+        setDependenciesInput(task.dependencies ? task.dependencies.join(', ') : '')
+        setShowAddTaskModal(true)
     }
 
     const getStatusColor = (status) => {
@@ -389,10 +430,10 @@ function ProjectPage() {
                             {/* Task List */}
                             <div className="space-y-2">
                                 {backlog.map((task) => (
-                                    <div key={task.id} className={`bg-white/40 rounded-lg p-3 border border-slate-200/50 transition-all duration-300 ${
+                                    <div key={task.id} className={`bg-white/40 rounded-lg p-3 border border-slate-200/50 transition-all duration-300 cursor-pointer hover:bg-white/60 ${
                                         taskActions[task.id] === 'accepted' ? 'opacity-60 bg-green-50/40' : 
                                         taskActions[task.id] === 'rejected' ? 'opacity-60 bg-red-50/40' : ''
-                                    }`}>
+                                    }`} onClick={() => handleEditTask(task)}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3">
@@ -457,29 +498,29 @@ function ProjectPage() {
                                             <div className="flex gap-2 ml-4">
                                                 {task.isAiGenerated && !taskActions[task.id] && (
                                                     <>
-                                                        <button
-                                                            onClick={() => handleAcceptTask(task.id)}
-                                                            className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
-                                                        >
-                                                            Accept
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleRejectTask(task.id)}
-                                                            className="px-3 py-1 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors"
-                                                        >
-                                                            Reject
-                                                        </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleAcceptTask(task.id); }}
+                                                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
+                                                >
+                                                    Accept
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleRejectTask(task.id); }}
+                                                    className="px-3 py-1 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition-colors"
+                                                >
+                                                    Reject
+                                                </button>
                                                     </>
                                                 )}
                                                 <button
-                                                    onClick={() => handleSummarizeTicket(task.id)}
+                                                    onClick={(e) => { e.stopPropagation(); handleSummarizeTicket(task.id); }}
                                                     disabled={loadingSummaries[task.id]}
                                                     className="px-3 py-1 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50"
                                                 >
                                                     {loadingSummaries[task.id] ? 'Summarizing...' : 'Summarize'}
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDeleteTask(task.id)}
+                                                    onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id); }}
                                                     className="px-3 py-1 bg-slate-500 text-white text-sm rounded-lg hover:bg-slate-600 transition-colors hover:cursor-pointer"
                                                 >
                                                     Delete
@@ -504,7 +545,7 @@ function ProjectPage() {
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
                     <div className="bg-white backdrop-blur-xl rounded-2xl border border-slate-200/50 p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-2xl font-bold text-slate-800">Add New Task</h2>
+                            <h2 className="text-2xl font-bold text-slate-800">{editingTask ? 'Edit Task' : 'Add New Task'}</h2>
                             <button
                                 onClick={() => setShowAddTaskModal(false)}
                                 className="p-2 hover:bg-white/50 rounded-lg transition-colors"
@@ -610,10 +651,23 @@ function ProjectPage() {
                                 onClick={handleAddTask}
                                 className="px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-xl font-medium hover:from-slate-700 hover:to-slate-800 transition-all duration-300"
                             >
-                                Add Task
+                                {editingTask ? 'Update Task' : 'Add Task'}
                             </button>
                             <button
-                                onClick={() => setShowAddTaskModal(false)}
+                                onClick={() => {
+                                    setShowAddTaskModal(false)
+                                    setEditingTask(null)
+                                    setNewTask({
+                                        title: '',
+                                        content: '',
+                                        decision: '',
+                                        consequences: '',
+                                        people: '',
+                                        dependencies: '',
+                                        status: 'To Do'
+                                    })
+                                    setDependenciesInput('')
+                                }}
                                 className="px-6 py-3 bg-white/50 text-slate-700 rounded-xl font-medium hover:bg-white/70 transition-all duration-300 border border-slate-200"
                             >
                                 Cancel
