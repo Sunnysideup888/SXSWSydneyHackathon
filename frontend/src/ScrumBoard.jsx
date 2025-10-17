@@ -151,7 +151,11 @@ function ScrumBoard() {
                                     {getColumnTasks(status).map((task) => (
                                         <div key={task.id} className="bg-white/80 backdrop-blur-sm rounded-xl p-3 border border-slate-200/50 shadow-sm">
                                             <div className="flex items-start justify-between mb-2">
-                                                <h3 className="text-sm font-semibold text-slate-800 flex-1">{task.title}</h3>
+                                                <h3 className="text-sm font-semibold text-slate-800 flex-1">
+                                                    {task.title}{task.hash && (
+                                                        <span className="text-slate-500 font-normal"> (#{task.hash})</span>
+                                                    )}
+                                                </h3>
                                                 <button
                                                     onClick={() => handleDeleteTask(task.id)}
                                                     className="ml-2 p-1 hover:bg-red-100 rounded transition-colors"
@@ -196,7 +200,13 @@ function ScrumBoard() {
                                                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                                         </svg>
-                                                        <span>{task.dependencies.join(', ')}</span>
+                                                        <span>
+                                                            {task.dependencies.map(dep => {
+                                                                // Find the task by hash
+                                                                const depTask = tasks.find(t => t.hash === dep.replace('#', ''))
+                                                                return depTask ? `${depTask.title} (${dep})` : dep
+                                                            }).join(', ')}
+                                                        </span>
                                                     </div>
                                                 )}
                                             </div>

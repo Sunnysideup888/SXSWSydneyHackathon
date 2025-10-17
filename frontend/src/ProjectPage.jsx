@@ -17,6 +17,9 @@ function ProjectPage() {
     })
     const [showAddTaskModal, setShowAddTaskModal] = useState(false)
     const [taskActions, setTaskActions] = useState({}) // Track accept/reject actions
+    const [dependencySuggestions, setDependencySuggestions] = useState([])
+    const [showSuggestions, setShowSuggestions] = useState(false)
+    const [dependenciesInput, setDependenciesInput] = useState('')
 
     // Load project and backlog data from localStorage
     useEffect(() => {
@@ -29,11 +32,26 @@ function ProjectPage() {
         }
     }, [projectId])
 
+    // Sync dependenciesInput with newTask.dependencies
+    useEffect(() => {
+        setDependenciesInput(newTask.dependencies)
+    }, [newTask.dependencies])
+
+    const generateTicketHash = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+        let hash = ''
+        for (let i = 0; i < 6; i++) {
+            hash += chars.charAt(Math.floor(Math.random() * chars.length))
+        }
+        return hash
+    }
+
     const handleAddTask = () => {
         if (!newTask.title.trim()) return
 
         const task = {
             id: Date.now(),
+            hash: generateTicketHash(),
             title: newTask.title,
             context: newTask.context,
             decision: newTask.decision,
@@ -67,6 +85,8 @@ function ProjectPage() {
             dependencies: '',
             status: 'queued'
         })
+        setDependenciesInput('')
+        setShowSuggestions(false)
         setShowAddTaskModal(false)
     }
 
@@ -74,6 +94,7 @@ function ProjectPage() {
         // Simulate AI-generated task
         const aiTask = {
             id: Date.now(),
+            hash: generateTicketHash(),
             title: 'AI Generated Task - Meeting Discussion',
             context: 'This task was generated from meeting transcript analysis',
             decision: 'AI determined this task is needed based on discussion points',
@@ -170,6 +191,61 @@ function ProjectPage() {
         }
     }
 
+    const handleDependenciesInput = (value) => {
+        setDependenciesInput(value)
+        setNewTask({...newTask, dependencies: value})
+        
+        // Check if user is typing (no @ prefix needed)
+        if (value.length > 0) {
+            // Split by comma to get the last part being typed
+            const parts = value.split(',')
+            const lastPart = parts[parts.length - 1].trim()
+            
+            if (lastPart.length > 0) {
+                // Filter tasks that match the input
+                const suggestions = backlog.filter(task => 
+                    task.title.toLowerCase().includes(lastPart.toLowerCase()) ||
+                    task.hash.toLowerCase().includes(lastPart.toLowerCase())
+                ).map(task => ({
+                    hash: task.hash,
+                    title: task.title,
+                    fullMatch: `#${task.hash}`,
+                    displayText: task.title
+                }))
+                
+                setDependencySuggestions(suggestions)
+                setShowSuggestions(suggestions.length > 0)
+            } else {
+                setShowSuggestions(false)
+            }
+        } else {
+            setShowSuggestions(false)
+        }
+    }
+
+    const selectSuggestion = (suggestion) => {
+        // Split by comma to get all parts except the last one being typed
+        const parts = dependenciesInput.split(',')
+        const beforeLastPart = parts.slice(0, -1).join(',')
+        const newValue = beforeLastPart + (beforeLastPart ? ', ' : '') + suggestion.fullMatch + ', '
+        
+        setDependenciesInput(newValue)
+        setNewTask({...newTask, dependencies: newValue})
+        setShowSuggestions(false)
+    }
+
+    const handleClickOutside = (e) => {
+        if (!e.target.closest('.dependencies-container')) {
+            setShowSuggestions(false)
+        }
+    }
+
+    // Add click outside listener
+    useEffect(() => {
+        document.addEventListener('click', handleClickOutside)
+        return () => document.removeEventListener('click', handleClickOutside)
+    }, [])
+
     if (!project) {
         return <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
             <div className="text-slate-600">Loading project...</div>
@@ -259,7 +335,11 @@ function ProjectPage() {
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3">
-                                                    <h3 className="text-base font-semibold text-slate-800">{task.title}</h3>
+                                                    <h3 className="text-base font-semibold text-slate-800">
+                                                        {task.title}{task.hash && (
+                                                            <span className="text-slate-500 font-normal"> (#{task.hash})</span>
+                                                        )}
+                                                    </h3>
                                                     <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(task.status)}`}>
                                                         {getStatusLabel(task.status)}
                                                     </span>
@@ -296,7 +376,13 @@ function ProjectPage() {
                                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                                                             </svg>
-                                                            {task.dependencies.join(', ')}
+                                                            <span>
+                                                                {task.dependencies.map(dep => {
+                                                                    // Find the task by hash
+                                                                    const depTask = backlog.find(t => t.hash === dep.replace('#', ''))
+                                                                    return depTask ? `${depTask.title} (${dep})` : dep
+                                                                }).join(', ')}
+                                                            </span>
                                                         </span>
                                                     )}
                                                 </div>
@@ -406,15 +492,29 @@ function ProjectPage() {
                                     placeholder="What are the consequences?"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Dependencies (comma-separated)</label>
+                            <div className="relative dependencies-container">
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Dependencies (start typing to search tickets)</label>
                                 <input
                                     type="text"
-                                    value={newTask.dependencies}
-                                    onChange={(e) => setNewTask({...newTask, dependencies: e.target.value})}
+                                    value={dependenciesInput}
+                                    onChange={(e) => handleDependenciesInput(e.target.value)}
                                     className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                                    placeholder="@ticket#123, @ticket#456"
+                                    placeholder="meeting, bug fix, ABC123"
                                 />
+                                {showSuggestions && dependencySuggestions.length > 0 && (
+                                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                        {dependencySuggestions.map((suggestion, index) => (
+                                            <div
+                                                key={index}
+                                                onClick={() => selectSuggestion(suggestion)}
+                                                className="p-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-b-0"
+                                            >
+                                                <div className="font-medium text-slate-800">{suggestion.title}</div>
+                                                <div className="text-sm text-slate-500">#{suggestion.hash}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
