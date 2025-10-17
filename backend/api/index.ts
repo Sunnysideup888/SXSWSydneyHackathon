@@ -854,10 +854,8 @@ app.post('/api/tickets/:ticketId/summarize', async (req, res) => {
     }
 });
 
-if (process.env.NODE_ENV !== 'production') {
-    app.listen(port, () => {
-        console.log(`Server running on http://localhost:${port}`);
-    });
-}
+app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+});
 
 export default app;
