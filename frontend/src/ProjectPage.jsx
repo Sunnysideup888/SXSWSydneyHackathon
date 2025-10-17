@@ -553,7 +553,7 @@ function ProjectPage() {
                                                                     br: () => <br />
                                                                 }}
                                                             >
-                                                                {summaries[task.id]}
+                                                                {summaries[task.id].replace(/\\n\\n/g, '\n\n')}
                                                             </ReactMarkdown>
                                                         </div>
                                                     </div>
