@@ -264,7 +264,10 @@ function ScrumBoard() {
                                                 {statuses.filter(s => s !== status).map((newStatus) => (
                                                     <button
                                                         key={newStatus}
-                                                        onClick={() => updateTaskStatus(task.id, newStatus)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            updateTaskStatus(task.id, newStatus);
+                                                        }}
                                                         className="px-2 py-1 text-xs bg-white/50 hover:bg-white/80 border border-slate-200 rounded transition-colors"
                                                     >
                                                         → {getStatusLabel(newStatus)}
