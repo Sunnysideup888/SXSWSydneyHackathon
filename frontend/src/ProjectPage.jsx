@@ -549,7 +549,7 @@ function ProjectPage() {
                                                 {summaries[task.id] && (
                                                     <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                                                         <h4 className="text-sm font-semibold text-purple-800 mb-2">AI Summary</h4>
-                                                        <div className="text-sm text-purple-700 prose prose-sm max-w-none">
+                                                        <div className="text-sm text-purple-700 max-w-none">
                                                             <ReactMarkdown
                                                                 components={{
                                                                     p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
