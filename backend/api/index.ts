@@ -3,7 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { tickets, projects, people } from '../db/schema/schema';
+import { tickets, projects, people, ticketsToPeople } from '../db/schema/schema';
+import { eq, and } from 'drizzle-orm';
 
 
 const app = express();
@@ -77,6 +78,119 @@ app.post('/api/people', async (req, res) => {
         }).returning();
 
         res.status(201).json(newPerson);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Ticket-People assignment routes
+app.post('/api/tickets/:ticketId/people', async (req, res) => {
+    try {
+        const { ticketId } = req.params;
+        const { personId } = req.body;
+        
+        if (!personId) {
+            return res.status(400).json({ error: 'personId is required' });
+        }
+
+        // Check if ticket and person exist
+        const ticket = await db.select().from(tickets).where(eq(tickets.id, parseInt(ticketId))).limit(1);
+        const person = await db.select().from(people).where(eq(people.id, parseInt(personId))).limit(1);
+
+        if (ticket.length === 0) {
+            return res.status(404).json({ error: 'Ticket not found' });
+        }
+        if (person.length === 0) {
+            return res.status(404).json({ error: 'Person not found' });
+        }
+
+        // Check if assignment already exists
+        const existingAssignment = await db.select()
+            .from(ticketsToPeople)
+            .where(and(
+                eq(ticketsToPeople.ticketId, parseInt(ticketId)),
+                eq(ticketsToPeople.personId, parseInt(personId))
+            ))
+            .limit(1);
+
+        if (existingAssignment.length > 0) {
+            return res.status(409).json({ error: 'Person is already assigned to this ticket' });
+        }
+
+        // Assign person to ticket
+        const [assignment] = await db.insert(ticketsToPeople).values({
+            ticketId: parseInt(ticketId),
+            personId: parseInt(personId),
+        }).returning();
+
+        res.status(201).json(assignment);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.delete('/api/tickets/:ticketId/people/:personId', async (req, res) => {
+    try {
+        const { ticketId, personId } = req.params;
+        
+        // Remove person from ticket
+        const deletedAssignment = await db.delete(ticketsToPeople)
+            .where(and(
+                eq(ticketsToPeople.ticketId, parseInt(ticketId)),
+                eq(ticketsToPeople.personId, parseInt(personId))
+            ))
+            .returning();
+
+        if (deletedAssignment.length === 0) {
+            return res.status(404).json({ error: 'Assignment not found' });
+        }
+
+        res.status(200).json({ message: 'Person removed from ticket successfully' });
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get specific ticket with people
+app.get('/api/tickets/:ticketId', async (req, res) => {
+    try {
+        const { ticketId } = req.params;
+        
+        // Get ticket details
+        const ticket = await db.select().from(tickets)
+            .where(eq(tickets.id, parseInt(ticketId)))
+            .limit(1);
+
+        if (ticket.length === 0) {
+            return res.status(404).json({ error: 'Ticket not found' });
+        }
+
+        // Get people assigned to this ticket
+        const ticketPeople = await db.select({
+            personId: people.id,
+            personName: people.name,
+            personEmail: people.email,
+        })
+        .from(ticketsToPeople)
+        .innerJoin(people, eq(ticketsToPeople.personId, people.id))
+        .where(eq(ticketsToPeople.ticketId, parseInt(ticketId)));
+
+        // Get project details
+        const project = await db.select().from(projects)
+            .where(eq(projects.id, ticket[0].projectId))
+            .limit(1);
+
+        // Combine ticket data with people and project
+        const ticketWithDetails = {
+            ...ticket[0],
+            project: project[0],
+            people: ticketPeople
+        };
+
+        res.status(200).json(ticketWithDetails);
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ error: error.message });
