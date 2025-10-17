@@ -53,6 +53,46 @@ app.post('/api/projects', async (req, res) => {
     }
 });
 
+app.get('/api/projects/:projectId', async (req, res) => {
+    try {
+        const { projectId } = req.params;
+        
+        // Get project details
+        const project = await db.select().from(projects)
+            .where(eq(projects.id, parseInt(projectId)))
+            .limit(1);
+
+        if (project.length === 0) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
+        // Get tickets for this project
+        const projectTickets = await db.select({
+            id: tickets.id,
+            title: tickets.title,
+            content: tickets.content,
+            decision: tickets.decision,
+            consequences: tickets.consequences,
+            status: tickets.status,
+            isAiGenerated: tickets.isAiGenerated,
+            createdAt: tickets.createdAt,
+        })
+        .from(tickets)
+        .where(eq(tickets.projectId, parseInt(projectId)));
+
+        // Combine project data with tickets
+        const projectWithTickets = {
+            ...project[0],
+            tickets: projectTickets
+        };
+
+        res.status(200).json(projectWithTickets);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // People routes
 app.get('/api/people', async (req, res) => {
     try {
