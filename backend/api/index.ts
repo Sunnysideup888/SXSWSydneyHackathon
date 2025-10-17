@@ -1,6 +1,6 @@
 import 'dotenv/config';
-const express = require('express');
-const cors = require('cors');
+import express from 'express';
+import cors from 'cors';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
 import { tickets, projects, people, ticketsToPeople, ticketDependencies, ticketStatusEnum } from '../db/schema/schema';
