@@ -1,16 +1,17 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { createClient } = require('@supabase/supabase-js');
+const { drizzle } = require('drizzle-orm/node-postgres');
+const { neon } = require('@neondatabase/serverless');
+const { tickets } = require('./db/schema/schema');
 
 const app = express();
 const port = 3001;
 
 const apiRouter = express.Router();
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const sql = neon(process.env.DATABASE_URL);
+const db = drizzle({ client: sql });
 
 app.use(cors());
 app.use(express.json());
@@ -19,10 +20,8 @@ apiRouter.get('/', (req, res) => {
     res.json({ message: 'Hello World!' });
 });
 
-apiRouter.get('/tasks', async (req, res) => {
-    const { data, error } = await supabase
-        .from('tasks')
-        .select('*');
+apiRouter.get('/tickets', async (req, res) => {
+    const { data, error } = await db.select().from(tickets);
 
     if (error) {
         console.error('Supabase error:', error);
