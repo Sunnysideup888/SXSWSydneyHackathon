@@ -57,12 +57,88 @@ app.post('/api/projects', async (req, res) => {
     }
 });
 
-app.delete('/api/projects/:id', async (req, res) => {
+// Get specific project with tickets
+app.get('/api/projects/:projectId', async (req, res) => {
     try {
-        const { id } = req.params;
+        const { projectId } = req.params;
+        
+        // Get project details
+        const project = await db.select().from(projects)
+            .where(eq(projects.id, parseInt(projectId)))
+            .limit(1);
+
+        if (project.length === 0) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
+        // Get tickets for this project
+        const projectTickets = await db.select({
+            id: tickets.id,
+            title: tickets.title,
+            content: tickets.content,
+            decision: tickets.decision,
+            consequences: tickets.consequences,
+            status: tickets.status,
+            isAiGenerated: tickets.isAiGenerated,
+            createdAt: tickets.createdAt,
+        })
+        .from(tickets)
+        .where(eq(tickets.projectId, parseInt(projectId)));
+
+        // Combine project data with tickets
+        const projectWithTickets = {
+            ...project[0],
+            tickets: projectTickets
+        };
+
+        res.status(200).json(projectWithTickets);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update project
+app.put('/api/projects/:projectId', async (req, res) => {
+    try {
+        const { projectId } = req.params;
+        const { name, description } = req.body;
+        
+        // Check if project exists
+        const existingProject = await db.select().from(projects)
+            .where(eq(projects.id, parseInt(projectId)))
+            .limit(1);
+
+        if (existingProject.length === 0) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
+        // Prepare update data (only include fields that are provided)
+        const updateData: any = {};
+        if (name !== undefined) updateData.name = name;
+        if (description !== undefined) updateData.description = description;
+        updateData.updatedAt = new Date();
+
+        // Update project
+        const [updatedProject] = await db.update(projects)
+            .set(updateData)
+            .where(eq(projects.id, parseInt(projectId)))
+            .returning();
+
+        res.status(200).json(updatedProject);
+    } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete project
+app.delete('/api/projects/:projectId', async (req, res) => {
+    try {
+        const { projectId } = req.params;
         
         const deletedProject = await db.delete(projects)
-            .where(eq(projects.id, parseInt(id)))
+            .where(eq(projects.id, parseInt(projectId)))
             .returning();
 
         if (deletedProject.length === 0) {
@@ -404,28 +480,45 @@ app.post('/api/tickets', async (req, res) => {
     }
 });
 
-app.put('/api/tickets/:id', async (req, res) => {
-    console.log('Backend: PUT /api/tickets/' + req.params.id, req.body);
+// Update ticket
+app.put('/api/tickets/:ticketId', async (req, res) => {
+    console.log('Backend: PUT /api/tickets/' + req.params.ticketId, req.body);
     try {
-        const { id } = req.params;
-        const { projectId, title, content, decision, consequences, status, isAiGenerated } = req.body;
+        const { ticketId } = req.params;
+        const { 
+            projectId, 
+            title, 
+            content, 
+            decision, 
+            consequences, 
+            status, 
+            isAiGenerated 
+        } = req.body;
         
-        const [updatedTicket] = await db.update(tickets)
-            .set({
-                projectId: projectId ? parseInt(projectId) : undefined,
-                title,
-                content,
-                decision,
-                consequences,
-                status,
-                isAiGenerated,
-            })
-            .where(eq(tickets.id, parseInt(id)))
-            .returning();
+        // Check if ticket exists
+        const existingTicket = await db.select().from(tickets)
+            .where(eq(tickets.id, parseInt(ticketId)))
+            .limit(1);
 
-        if (!updatedTicket) {
+        if (existingTicket.length === 0) {
             return res.status(404).json({ error: 'Ticket not found' });
         }
+
+        // Prepare update data (only include fields that are provided)
+        const updateData: any = {};
+        if (projectId !== undefined) updateData.projectId = parseInt(projectId);
+        if (title !== undefined) updateData.title = title;
+        if (content !== undefined) updateData.content = content;
+        if (decision !== undefined) updateData.decision = decision;
+        if (consequences !== undefined) updateData.consequences = consequences;
+        if (status !== undefined) updateData.status = status;
+        if (isAiGenerated !== undefined) updateData.isAiGenerated = isAiGenerated;
+
+        // Update ticket
+        const [updatedTicket] = await db.update(tickets)
+            .set(updateData)
+            .where(eq(tickets.id, parseInt(ticketId)))
+            .returning();
 
         console.log('Backend: Updated ticket', updatedTicket);
         res.status(200).json(updatedTicket);
@@ -435,13 +528,14 @@ app.put('/api/tickets/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/tickets/:id', async (req, res) => {
-    console.log('Backend: DELETE /api/tickets/' + req.params.id);
+// Delete ticket
+app.delete('/api/tickets/:ticketId', async (req, res) => {
+    console.log('Backend: DELETE /api/tickets/' + req.params.ticketId);
     try {
-        const { id } = req.params;
+        const { ticketId } = req.params;
         
         const deletedTicket = await db.delete(tickets)
-            .where(eq(tickets.id, parseInt(id)))
+            .where(eq(tickets.id, parseInt(ticketId)))
             .returning();
 
         if (deletedTicket.length === 0) {
@@ -455,7 +549,6 @@ app.delete('/api/tickets/:id', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
 
 if (process.env.NODE_ENV !== 'production') {
     app.listen(port, () => {
