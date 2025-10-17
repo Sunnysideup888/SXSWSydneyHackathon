@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom'
 import ProjectPage from './ProjectPage'
 import ScrumBoard from './ScrumBoard'
+import DependencyGraph from './DependencyGraph'
 import { projectsAPI } from './api/apiClient'
 
 function HomePage() {
@@ -192,6 +193,7 @@ function App() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/project/:projectId" element={<ProjectPage />} />
                 <Route path="/project/:projectId/scrum" element={<ScrumBoard />} />
+                <Route path="/ticket/:ticketId/dependencies" element={<DependencyGraph />} />
             </Routes>
         </Router>
     )
