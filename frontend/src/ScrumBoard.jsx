@@ -54,12 +54,11 @@ function ScrumBoard() {
 
     const getStatusLabel = (status) => {
         switch (status) {
-            case 'queued': return 'Queued'
-            case 'in_dev': return 'In Dev'
-            case 'in_test': return 'In Test'
-            case 'in_review': return 'In Review'
-            case 'completed': return 'Completed'
-            default: return 'Queued'
+            case 'To Do': return 'To Do'
+            case 'In Progress': return 'In Progress'
+            case 'In Review': return 'In Review'
+            case 'Done': return 'Done'
+            default: return 'To Do'
         }
     }
 
@@ -81,7 +80,7 @@ function ScrumBoard() {
         </div>
     }
 
-    const statuses = ['queued', 'in_dev', 'in_test', 'in_review', 'completed']
+    const statuses = ['To Do', 'In Progress', 'In Review', 'Done']
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
@@ -171,17 +170,17 @@ function ScrumBoard() {
                                                 <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(task.status)}`}>
                                                     {getStatusLabel(task.status)}
                                                 </span>
-                                                {task.is_ai_generated && (
+                                                {task.isAiGenerated && (
                                                     <span className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
                                                         AI Transcribed
                                                     </span>
                                                 )}
                                             </div>
 
-                                            {/* Context */}
-                                            {task.context && (
+                                            {/* Content */}
+                                            {task.content && (
                                                 <p className="text-xs text-slate-600 mb-2 line-clamp-2">
-                                                    {task.context}
+                                                    {task.content}
                                                 </p>
                                             )}
 

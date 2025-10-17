@@ -8,12 +8,12 @@ function ProjectPage() {
     const [backlog, setBacklog] = useState([])
     const [newTask, setNewTask] = useState({
         title: '',
-        context: '',
+        content: '',
         decision: '',
         consequences: '',
         people: '',
         dependencies: '',
-        status: 'queued'
+        status: 'To Do'
     })
     const [showAddTaskModal, setShowAddTaskModal] = useState(false)
     const [taskActions, setTaskActions] = useState({}) // Track accept/reject actions
@@ -51,16 +51,17 @@ function ProjectPage() {
 
         const task = {
             id: Date.now(),
+            projectId: parseInt(projectId),
             hash: generateTicketHash(),
             title: newTask.title,
-            context: newTask.context,
+            content: newTask.content,
             decision: newTask.decision,
             consequences: newTask.consequences,
             people: newTask.people.split(',').map(p => p.trim()).filter(p => p),
             dependencies: newTask.dependencies.split(',').map(d => d.trim()).filter(d => d),
             status: newTask.status,
-            is_ai_generated: false,
-            created_at: new Date().toISOString()
+            isAiGenerated: false,
+            createdAt: new Date().toISOString()
         }
 
         const updatedBacklog = [...backlog, task]
@@ -78,12 +79,12 @@ function ProjectPage() {
         // Reset form and close modal
         setNewTask({
             title: '',
-            context: '',
+            content: '',
             decision: '',
             consequences: '',
             people: '',
             dependencies: '',
-            status: 'queued'
+            status: 'To Do'
         })
         setDependenciesInput('')
         setShowSuggestions(false)
@@ -94,16 +95,17 @@ function ProjectPage() {
         // Simulate AI-generated task
         const aiTask = {
             id: Date.now(),
+            projectId: parseInt(projectId),
             hash: generateTicketHash(),
             title: 'AI Generated Task - Meeting Discussion',
-            context: 'This task was generated from meeting transcript analysis',
+            content: 'This task was generated from meeting transcript analysis',
             decision: 'AI determined this task is needed based on discussion points',
             consequences: 'Implementing this will improve team workflow',
             people: ['AI Assistant'],
             dependencies: [],
-            status: 'queued',
-            is_ai_generated: true,
-            created_at: new Date().toISOString()
+            status: 'To Do',
+            isAiGenerated: true,
+            createdAt: new Date().toISOString()
         }
 
         const updatedBacklog = [...backlog, aiTask]
@@ -121,7 +123,7 @@ function ProjectPage() {
 
     const handleAcceptTask = (taskId) => {
         const updatedBacklog = backlog.map(task => 
-            task.id === taskId ? { ...task, is_ai_generated: false } : task
+            task.id === taskId ? { ...task, isAiGenerated: false } : task
         )
         setBacklog(updatedBacklog)
 
@@ -171,23 +173,21 @@ function ProjectPage() {
 
     const getStatusColor = (status) => {
         switch (status) {
-            case 'queued': return 'bg-gray-100 text-gray-700 border-gray-200'
-            case 'in_dev': return 'bg-blue-100 text-blue-700 border-blue-200'
-            case 'in_test': return 'bg-yellow-100 text-yellow-700 border-yellow-200'
-            case 'in_review': return 'bg-purple-100 text-purple-700 border-purple-200'
-            case 'completed': return 'bg-green-100 text-green-700 border-green-200'
+            case 'To Do': return 'bg-gray-100 text-gray-700 border-gray-200'
+            case 'In Progress': return 'bg-blue-100 text-blue-700 border-blue-200'
+            case 'In Review': return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+            case 'Done': return 'bg-green-100 text-green-700 border-green-200'
             default: return 'bg-gray-100 text-gray-700 border-gray-200'
         }
     }
 
     const getStatusLabel = (status) => {
         switch (status) {
-            case 'queued': return 'Queued'
-            case 'in_dev': return 'In Dev'
-            case 'in_test': return 'In Test'
-            case 'in_review': return 'In Review'
-            case 'completed': return 'Completed'
-            default: return 'Queued'
+            case 'To Do': return 'To Do'
+            case 'In Progress': return 'In Progress'
+            case 'In Review': return 'In Review'
+            case 'Done': return 'Done'
+            default: return 'To Do'
         }
     }
 
@@ -343,7 +343,7 @@ function ProjectPage() {
                                                     <span className={`px-2 py-1 text-xs rounded-full border ${getStatusColor(task.status)}`}>
                                                         {getStatusLabel(task.status)}
                                                     </span>
-                                                    {task.is_ai_generated && (
+                                                    {task.isAiGenerated && (
                                                         <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">
                                                             AI Transcribed
                                                         </span>
@@ -360,7 +360,7 @@ function ProjectPage() {
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
-                                                    {task.context && <span>Context: {task.context.substring(0, 50)}...</span>}
+                                                    {task.content && <span>Content: {task.content.substring(0, 50)}...</span>}
                                                 </div>
                                                 <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
                                                     {task.people.length > 0 && (
@@ -388,7 +388,7 @@ function ProjectPage() {
                                                 </div>
                                             </div>
                                             <div className="flex gap-2 ml-4">
-                                                {task.is_ai_generated && !taskActions[task.id] && (
+                                                {task.isAiGenerated && !taskActions[task.id] && (
                                                     <>
                                                         <button
                                                             onClick={() => handleAcceptTask(task.id)}
@@ -462,16 +462,16 @@ function ProjectPage() {
                                     placeholder="@john, @jane"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Context</label>
-                                <textarea
-                                    value={newTask.context}
-                                    onChange={(e) => setNewTask({...newTask, context: e.target.value})}
-                                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-                                    rows="3"
-                                    placeholder="Why is this needed?"
-                                />
-                            </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">Content</label>
+                                        <textarea
+                                            value={newTask.content}
+                                            onChange={(e) => setNewTask({...newTask, content: e.target.value})}
+                                            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                            rows="3"
+                                            placeholder="Why is this needed?"
+                                        />
+                                    </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">Decision</label>
                                 <textarea
@@ -523,11 +523,10 @@ function ProjectPage() {
                                     onChange={(e) => setNewTask({...newTask, status: e.target.value})}
                                     className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-400 focus:border-transparent"
                                 >
-                                    <option value="queued">Queued</option>
-                                    <option value="in_dev">In Dev</option>
-                                    <option value="in_test">In Test</option>
-                                    <option value="in_review">In Review</option>
-                                    <option value="completed">Completed</option>
+                                    <option value="To Do">To Do</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="In Review">In Review</option>
+                                    <option value="Done">Done</option>
                                 </select>
                             </div>
                         </div>

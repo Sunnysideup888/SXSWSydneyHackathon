@@ -17,6 +17,7 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
     "@supabase/supabase-js": "^2.75.0",
+    "@types/express": "^5.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.6",
