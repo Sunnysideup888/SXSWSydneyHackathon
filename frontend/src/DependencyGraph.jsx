@@ -15,7 +15,8 @@ const DependencyGraph = () => {
     const fetchDependencyGraph = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/tickets/${ticketId}/dependency-graph`);
+        console.log("MAKING A CALL TO " + `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}api/tickets/${ticketId}/dependency-graph`)
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}api/tickets/${ticketId}/dependency-graph`);
         if (!response.ok) {
           throw new Error('Failed to fetch dependency graph');
         }
