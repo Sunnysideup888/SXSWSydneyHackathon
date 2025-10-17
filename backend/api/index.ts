@@ -1,6 +1,6 @@
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
+const express = require('express');
+const cors = require('cors');
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
 import { tickets, projects, people, ticketsToPeople, ticketDependencies, ticketStatusEnum } from '../db/schema/schema';
@@ -593,7 +593,7 @@ app.get('/api/tickets', async (req, res) => {
     try {
         const data = await db.select().from(tickets);
         console.log('Backend: Found', data.length, 'tickets');
-        res.status(200).json(data);
+    res.status(200).json(data);
     } catch (error) {
         console.error('Database error:', error);
         res.status(500).json({ error: error.message });
